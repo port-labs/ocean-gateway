@@ -41,9 +41,11 @@ func newHandler(w StreamWriter) *Handler {
 	return NewHandler(w, quiet(), 2, time.Millisecond)
 }
 
+func noopPing(_ context.Context) error { return nil }
+
 func doRequest(t *testing.T, h *Handler, logIngestID, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	srv := New(h, quiet())
+	srv := New(h, noopPing, quiet())
 	req := httptest.NewRequest(http.MethodPost, "/live-events/"+logIngestID+"/integration/webhook", strings.NewReader(body))
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -105,5 +107,40 @@ func TestWebhookMissingLogIngestId(t *testing.T) {
 	h.Webhook(rec, req) // no chi URL param => empty logIngestId
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d want 400", rec.Code)
+	}
+}
+
+func TestHealthzRedisUp(t *testing.T) {
+	srv := New(newHandler(&stubWriter{}), noopPing, quiet())
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Fatalf("status = %v want ok", body["status"])
+	}
+}
+
+func TestHealthzRedisDown(t *testing.T) {
+	failPing := func(_ context.Context) error { return errors.New("connection refused") }
+	srv := New(newHandler(&stubWriter{}), failPing, quiet())
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d want 503", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if body["status"] != "degraded" {
+		t.Fatalf("status = %v want degraded", body["status"])
 	}
 }

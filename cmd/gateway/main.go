@@ -56,7 +56,7 @@ func main() {
 	h := server.NewHandler(streamWriter, log, cfg.WriteMaxRetries, cfg.WriteBackoff)
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           server.New(h, log),
+		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
