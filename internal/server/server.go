@@ -12,8 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/port-labs/ocean-gateway/internal/version"
 )
 
 // PingFunc is a function that pings a dependency and returns any error.
@@ -21,14 +19,14 @@ import (
 type PingFunc func(ctx context.Context) error
 
 // New builds the HTTP handler with middleware and routes mounted.
-func New(h *Handler, redisPing PingFunc, log *slog.Logger) http.Handler {
+func New(h *Handler, redisPing PingFunc, version, commit string, log *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))
 
-	r.Get("/healthz", healthHandler(redisPing))
+	r.Get("/healthz", healthHandler(redisPing, version, commit))
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Post("/live-events/{logIngestId}/integration/webhook", h.Webhook)
@@ -49,15 +47,15 @@ type healthResponse struct {
 	GoVersion  string                     `json:"goVersion"`
 }
 
-func healthHandler(redisPing PingFunc) http.HandlerFunc {
+func healthHandler(redisPing PingFunc, version, commit string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 
 		resp := healthResponse{
 			Status:    "ok",
-			Version:   version.Version,
-			Commit:    version.Commit,
+			Version:   version,
+			Commit:    commit,
 			GoVersion: runtime.Version(),
 			Components: map[string]componentStatus{
 				"gateway": {Status: "ok"},

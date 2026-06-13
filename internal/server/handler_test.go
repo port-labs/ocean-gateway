@@ -45,7 +45,7 @@ func noopPing(_ context.Context) error { return nil }
 
 func doRequest(t *testing.T, h *Handler, logIngestID, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	srv := New(h, noopPing, quiet())
+	srv := New(h, noopPing, "test", "none", quiet())
 	req := httptest.NewRequest(http.MethodPost, "/live-events/"+logIngestID+"/integration/webhook", strings.NewReader(body))
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -111,7 +111,7 @@ func TestWebhookMissingLogIngestId(t *testing.T) {
 }
 
 func TestHealthzRedisUp(t *testing.T) {
-	srv := New(newHandler(&stubWriter{}), noopPing, quiet())
+	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet())
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -129,7 +129,7 @@ func TestHealthzRedisUp(t *testing.T) {
 
 func TestHealthzRedisDown(t *testing.T) {
 	failPing := func(_ context.Context) error { return errors.New("connection refused") }
-	srv := New(newHandler(&stubWriter{}), failPing, quiet())
+	srv := New(newHandler(&stubWriter{}), failPing, "test", "none", quiet())
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -19,7 +20,13 @@ import (
 	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
-	"github.com/port-labs/ocean-gateway/internal/version"
+)
+
+// Build-time metadata — injected via -ldflags.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 func main() {
@@ -31,10 +38,10 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("starting ocean-gateway",
-		"version", version.Version,
-		"commit", version.Commit,
-		"date", version.Date,
-		"goVersion", version.GoVersion(),
+		"version", version,
+		"commit", commit,
+		"date", date,
+		"goVersion", runtime.Version(),
 		"listenAddr", cfg.ListenAddr,
 		"redisAddr", cfg.RedisAddr,
 		"redisPoolSize", cfg.RedisPoolSize,
@@ -46,7 +53,7 @@ func main() {
 	)
 
 	// Register build info and start collecting Redis pool stats.
-	metrics.RegisterBuildInfo()
+	metrics.RegisterBuildInfo(version, commit, date)
 
 	// Redis client + connectivity check.
 	rdb := goredis.NewClient(&goredis.Options{
@@ -80,7 +87,7 @@ func main() {
 	h := server.NewHandler(streamWriter, log, cfg.WriteMaxRetries, cfg.WriteBackoff)
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, log),
+		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, version, commit, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

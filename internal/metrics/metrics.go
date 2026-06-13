@@ -3,12 +3,10 @@
 package metrics
 
 import (
-	"context"
+	"runtime"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"github.com/port-labs/ocean-gateway/internal/version"
 )
 
 // Buckets tuned to the gateway's synchronous write path: most XADDs complete in
@@ -84,40 +82,29 @@ type PoolStatsFunc func() PoolStats
 
 // RegisterBuildInfo registers a gauge that always equals 1 and carries version
 // labels — the standard way to expose build metadata in Prometheus.
-func RegisterBuildInfo() {
+func RegisterBuildInfo(version, commit, date string) {
 	promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "gateway_build_info",
 		Help: "Build information (always 1). Use labels to identify the deployed version.",
 	}, []string{"version", "commit", "date", "go_version"}).With(prometheus.Labels{
-		"version":    version.Version,
-		"commit":     version.Commit,
-		"date":       version.Date,
-		"go_version": version.GoVersion(),
+		"version":    version,
+		"commit":     commit,
+		"date":       date,
+		"go_version": runtime.Version(),
 	}).Set(1)
 }
 
-// RegisterRedisPool registers per-scrape gauges and counters sourced from the
-// Redis connection pool statistics.
+// RegisterRedisPool registers per-scrape gauges sourced from the Redis
+// connection pool statistics. Each is sampled at scrape time via GaugeFunc.
 func RegisterRedisPool(fn PoolStatsFunc) {
-	// Current-state gauges — sampled at scrape time.
-	for _, spec := range []struct {
-		name, help string
-		field      func(PoolStats) float64
-	}{
-		{"gateway_redis_pool_total_conns", "Total connections in the Redis pool.", func(s PoolStats) float64 { return float64(s.TotalConns) }},
-		{"gateway_redis_pool_idle_conns", "Idle connections in the Redis pool.", func(s PoolStats) float64 { return float64(s.IdleConns) }},
-		{"gateway_redis_pool_stale_conns", "Stale connections removed from the Redis pool.", func(s PoolStats) float64 { return float64(s.StaleConns) }},
-		{"gateway_redis_pool_hits_total", "Cumulative pool hits (free connection found).", func(s PoolStats) float64 { return float64(s.Hits) }},
-		{"gateway_redis_pool_misses_total", "Cumulative pool misses (no free connection).", func(s PoolStats) float64 { return float64(s.Misses) }},
-		{"gateway_redis_pool_timeouts_total", "Cumulative pool wait timeouts.", func(s PoolStats) float64 { return float64(s.Timeouts) }},
-	} {
-		field := spec.field // capture
-		promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: spec.name, Help: spec.help},
-			func() float64 { return field(fn()) })
+	gauge := func(name, help string, f func(PoolStats) float64) {
+		promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: name, Help: help},
+			func() float64 { return f(fn()) })
 	}
-}
-
-// Checker is the interface used by the health handler to ping a dependency.
-type Checker interface {
-	Check(ctx context.Context) error
+	gauge("gateway_redis_pool_total_conns", "Total connections in the Redis pool.", func(s PoolStats) float64 { return float64(s.TotalConns) })
+	gauge("gateway_redis_pool_idle_conns", "Idle connections in the Redis pool.", func(s PoolStats) float64 { return float64(s.IdleConns) })
+	gauge("gateway_redis_pool_stale_conns", "Stale connections removed from the Redis pool.", func(s PoolStats) float64 { return float64(s.StaleConns) })
+	gauge("gateway_redis_pool_hits_total", "Cumulative pool hits (free connection found).", func(s PoolStats) float64 { return float64(s.Hits) })
+	gauge("gateway_redis_pool_misses_total", "Cumulative pool misses (no free connection).", func(s PoolStats) float64 { return float64(s.Misses) })
+	gauge("gateway_redis_pool_timeouts_total", "Cumulative pool wait timeouts.", func(s PoolStats) float64 { return float64(s.Timeouts) })
 }

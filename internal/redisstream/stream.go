@@ -69,37 +69,6 @@ func (w *Writer) Add(ctx context.Context, e *event.Event) error {
 	return add.Err()
 }
 
-// AddBatch appends a batch of events in a single pipelined round-trip. Events
-// may target different streams. It returns a per-event error slice aligned with
-// events (nil = success), so the caller can retry only the failures.
-func (w *Writer) AddBatch(ctx context.Context, events []*event.Event) []error {
-	if len(events) == 0 {
-		return nil
-	}
-	pipe := w.rdb.Pipeline()
-	cmds := make([]*redis.StringCmd, len(events))
-	seen := make(map[string]struct{}, len(events))
-	for i, e := range events {
-		cmds[i] = pipe.XAdd(ctx, w.argsFor(e))
-		// Refresh each distinct stream's idle TTL once per batch.
-		if w.streamTTL > 0 {
-			key := StreamKey(e.LogIngestID)
-			if _, ok := seen[key]; !ok {
-				seen[key] = struct{}{}
-				pipe.Expire(ctx, key, w.streamTTL)
-			}
-		}
-	}
-	// Exec returns the first command error; per-command status comes from each
-	// cmd's Err(). A connection-level failure surfaces on every command.
-	_, _ = pipe.Exec(ctx)
-	errs := make([]error, len(events))
-	for i, c := range cmds {
-		errs[i] = c.Err()
-	}
-	return errs
-}
-
 func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
 	args := &redis.XAddArgs{
 		Stream: StreamKey(e.LogIngestID),
