@@ -13,9 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/port-labs/ocean-gateway/internal/cache"
 	"github.com/port-labs/ocean-gateway/internal/config"
-	"github.com/port-labs/ocean-gateway/internal/port"
 	"github.com/port-labs/ocean-gateway/internal/queue"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
@@ -35,8 +33,9 @@ func main() {
 		"queueMaxBytes", cfg.QueueMaxBytes,
 		"workers", cfg.Workers,
 		"batchSize", cfg.BatchSize,
-		"cacheTTL", cfg.CacheTTL.String(),
 		"streamMaxLen", cfg.StreamMaxLen,
+		"eventTTL", cfg.EventTTL.String(),
+		"streamTTL", cfg.StreamTTL.String(),
 	)
 
 	// Redis client + connectivity check.
@@ -54,18 +53,11 @@ func main() {
 	cancelPing()
 
 	// Dependencies.
-	c := cache.New()
-	c.StartJanitor(time.Minute)
-	defer c.Close()
-
 	q := queue.New(cfg.QueueMaxBytes)
-
-	portClient := port.New(cfg.PortAPIBaseURL, &http.Client{Timeout: cfg.PortAPITimeout})
-	streamWriter := redisstream.NewWriter(rdb, cfg.StreamMaxLen)
-
+	streamWriter := redisstream.NewWriter(rdb, cfg.StreamMaxLen, cfg.EventTTL, cfg.StreamTTL)
 	pool := worker.New(q, streamWriter, log, cfg.Workers, cfg.BatchSize, cfg.ForwardMaxRetries, cfg.ForwardBackoff)
 
-	h := server.NewHandler(c, portClient, q, log, cfg.CacheTTL)
+	h := server.NewHandler(q, log)
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           server.New(h, log),

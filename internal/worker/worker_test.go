@@ -64,7 +64,7 @@ func TestForwardSucceedsAfterRetry(t *testing.T) {
 	q := queue.New(1 << 20)
 	fwd := &stubForwarder{failCalls: 2} // fail twice, succeed on 3rd
 	p := New(q, fwd, quietLogger(), 1, 1, 3, time.Millisecond)
-	_ = q.Enqueue(&event.Event{OrgID: "o", LiveEventsUUID: "u", Payload: []byte("x")})
+	_ = q.Enqueue(&event.Event{LogIngestID: "log", Payload: []byte("x")})
 	runPool(t, q, p)
 
 	if fwd.succeeded.Load() != 1 {
@@ -79,7 +79,7 @@ func TestForwardDropsAfterRetriesExhausted(t *testing.T) {
 	q := queue.New(1 << 20)
 	fwd := &stubForwarder{failCalls: 1000} // always fails
 	p := New(q, fwd, quietLogger(), 1, 1, 2, time.Millisecond)
-	_ = q.Enqueue(&event.Event{OrgID: "o", LiveEventsUUID: "u", Payload: []byte("x")})
+	_ = q.Enqueue(&event.Event{LogIngestID: "log", Payload: []byte("x")})
 	runPool(t, q, p)
 
 	if p.Dropped() != 1 {
@@ -110,7 +110,7 @@ func TestBatchDrainsAllEvents(t *testing.T) {
 	q := queue.New(1 << 30)
 	const n = 5000
 	for i := 0; i < n; i++ {
-		_ = q.Enqueue(&event.Event{OrgID: "o", LiveEventsUUID: "u", Payload: []byte("x")})
+		_ = q.Enqueue(&event.Event{LogIngestID: "log", Payload: []byte("x")})
 	}
 	fwd := &recordingForwarder{}
 	p := New(q, fwd, quietLogger(), 1, 500, 3, time.Millisecond)

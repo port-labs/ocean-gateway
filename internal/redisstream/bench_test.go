@@ -33,31 +33,31 @@ func TestDrainThroughput(t *testing.T) {
 	const batchSize = 500
 	payload := []byte(`{"webhookEvent":"jira:issue_updated","issue":{"key":"PORT-1"}}`)
 
-	mkEvents := func(uuid string) []*event.Event {
+	mkEvents := func(logIngestID string) []*event.Event {
 		out := make([]*event.Event, total)
 		for i := range out {
-			out[i] = &event.Event{OrgID: "org_bench", LiveEventsUUID: uuid, Payload: payload}
+			out[i] = &event.Event{LogIngestID: logIngestID, Payload: payload}
 		}
 		return out
 	}
 
 	// --- single XADD per event ---
-	singleKey := StreamKey("org_bench", "single")
+	singleKey := StreamKey("bench_single")
 	rdb.Del(ctx, singleKey)
-	w := NewWriter(rdb, 0)
-	evs := mkEvents("single")
+	w := NewWriter(rdb, 0, 0, 0)
+	evs := mkEvents("bench_single")
 	t0 := time.Now()
 	for _, e := range evs {
-		if err := w.Add(ctx, e.OrgID, e.LiveEventsUUID, e.Payload); err != nil {
+		if err := w.Add(ctx, e); err != nil {
 			t.Fatalf("add: %v", err)
 		}
 	}
 	singleDur := time.Since(t0)
 
 	// --- pipelined AddBatch (batchSize per round-trip) ---
-	batchKey := StreamKey("org_bench", "batch")
+	batchKey := StreamKey("bench_batch")
 	rdb.Del(ctx, batchKey)
-	evs = mkEvents("batch")
+	evs = mkEvents("bench_batch")
 	t0 = time.Now()
 	for i := 0; i < len(evs); i += batchSize {
 		end := i + batchSize

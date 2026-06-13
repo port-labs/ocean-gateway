@@ -1,12 +1,11 @@
 // Command loadtest fires a configurable burst of live events at a running
-// gateway, spread across several orgs. Each org gets its own logIngestId and
-// its own bearer JWT (orgId claim), because the gateway caches the
-// logIngestId -> {liveEventsUuid, orgId} resolution: sharing a logIngestId
-// across orgs would collapse every event into the first org's stream.
+// gateway, spread across several distinct logIngestId streams. Each event is a
+// plain POST (no auth) carrying a JSON body and a couple of request headers, so
+// it exercises both the payload and headers captured into the Redis stream.
 //
 // Usage:
 //
-//	go run ./cmd/loadtest -url http://localhost:8080 -events 10000 -orgs 10
+//	go run ./cmd/loadtest -url http://localhost:8080 -events 10000 -streams 10
 package main
 
 import (
@@ -21,27 +20,28 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func main() {
 	var (
 		baseURL      = flag.String("url", "http://localhost:8080", "gateway base URL")
 		totalEvents  = flag.Int("events", 10000, "total number of events to send")
-		orgs         = flag.Int("orgs", 10, "number of distinct orgs (each gets its own logIngestId + JWT)")
+		streams      = flag.Int("streams", 10, "number of distinct logIngestId streams to spread events across")
 		concurrency  = flag.Int("concurrency", 50, "number of concurrent senders")
-		ingestPrefix = flag.String("log-ingest-prefix", "loadtest-ingest-", "logIngestId prefix; org i uses <prefix><i>")
+		ingestPrefix = flag.String("log-ingest-prefix", "loadtest-ingest-", "logIngestId prefix; stream i uses <prefix><i>")
 		timeout      = flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	)
 	flag.Parse()
 
-	if *orgs < 1 || *totalEvents < 1 || *concurrency < 1 {
-		fmt.Fprintln(os.Stderr, "events, orgs and concurrency must all be >= 1")
+	if *streams < 1 || *totalEvents < 1 || *concurrency < 1 {
+		fmt.Fprintln(os.Stderr, "events, streams and concurrency must all be >= 1")
 		os.Exit(2)
 	}
 
-	senders := buildSenders(*orgs, *ingestPrefix)
+	ingestIDs := make([]string, *streams)
+	for i := range ingestIDs {
+		ingestIDs[i] = fmt.Sprintf("%s%d", *ingestPrefix, i)
+	}
 
 	client := &http.Client{
 		Timeout: *timeout,
@@ -52,42 +52,11 @@ func main() {
 		},
 	}
 
-	fmt.Printf("Load test: %d events across %d orgs, concurrency %d -> %s\n",
-		*totalEvents, *orgs, *concurrency, *baseURL)
+	fmt.Printf("Load test: %d events across %d streams, concurrency %d -> %s\n",
+		*totalEvents, *streams, *concurrency, *baseURL)
 
-	agg := run(client, *baseURL, senders, *totalEvents, *concurrency)
-	agg.report(*totalEvents, *orgs)
-}
-
-// sender holds the per-org request context.
-type sender struct {
-	orgID       string
-	logIngestID string
-	authHeader  string
-}
-
-func buildSenders(orgs int, ingestPrefix string) []sender {
-	out := make([]sender, orgs)
-	for i := 0; i < orgs; i++ {
-		orgID := fmt.Sprintf("org_load_%d", i)
-		out[i] = sender{
-			orgID:       orgID,
-			logIngestID: fmt.Sprintf("%s%d", ingestPrefix, i),
-			authHeader:  "Bearer " + mintToken(orgID),
-		}
-	}
-	return out
-}
-
-// mintToken creates a decode-only JWT carrying the orgId claim. The gateway
-// does not verify the signature, so any signing key works.
-func mintToken(orgID string) string {
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"orgId": orgID})
-	s, err := tok.SignedString([]byte("loadtest"))
-	if err != nil {
-		panic(err)
-	}
-	return s
+	agg := run(client, *baseURL, ingestIDs, *totalEvents, *concurrency)
+	agg.report(*totalEvents)
 }
 
 type aggregate struct {
@@ -99,7 +68,7 @@ type aggregate struct {
 	wall      time.Duration
 }
 
-func run(client *http.Client, baseURL string, senders []sender, total, concurrency int) *aggregate {
+func run(client *http.Client, baseURL string, ingestIDs []string, total, concurrency int) *aggregate {
 	agg := &aggregate{status: make(map[int]int64)}
 	var next int64 = -1 // atomically incremented to claim event indices
 
@@ -117,8 +86,8 @@ func run(client *http.Client, baseURL string, senders []sender, total, concurren
 				if int(i) >= total {
 					break
 				}
-				s := senders[int(i)%len(senders)]
-				lat, code, err := send(client, baseURL, s, int(i))
+				logIngestID := ingestIDs[int(i)%len(ingestIDs)]
+				lat, code, err := send(client, baseURL, logIngestID, int(i))
 				local = append(local, lat)
 				localNs += int64(lat)
 				if err != nil {
@@ -142,15 +111,16 @@ func run(client *http.Client, baseURL string, senders []sender, total, concurren
 	return agg
 }
 
-func send(client *http.Client, baseURL string, s sender, seq int) (time.Duration, int, error) {
-	url := fmt.Sprintf("%s/live-events/%s/integration/webhook", baseURL, s.logIngestID)
-	body := fmt.Sprintf(`{"org":%q,"seq":%d,"event":"loadtest"}`, s.orgID, seq)
+func send(client *http.Client, baseURL, logIngestID string, seq int) (time.Duration, int, error) {
+	url := fmt.Sprintf("%s/live-events/%s/integration/webhook", baseURL, logIngestID)
+	body := fmt.Sprintf(`{"seq":%d,"event":"loadtest"}`, seq)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader([]byte(body)))
 	if err != nil {
 		return 0, 0, err
 	}
-	req.Header.Set("Authorization", s.authHeader)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Event-Type", "loadtest")
+	req.Header.Set("X-Sequence", fmt.Sprint(seq))
 
 	t0 := time.Now()
 	resp, err := client.Do(req)
@@ -164,7 +134,7 @@ func send(client *http.Client, baseURL string, s sender, seq int) (time.Duration
 	return lat, resp.StatusCode, nil
 }
 
-func (a *aggregate) report(total, orgs int) {
+func (a *aggregate) report(total int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

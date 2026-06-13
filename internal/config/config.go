@@ -12,9 +12,6 @@ import (
 type Config struct {
 	ListenAddr string
 
-	PortAPIBaseURL string
-	PortAPITimeout time.Duration
-
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
@@ -22,9 +19,10 @@ type Config struct {
 	QueueMaxBytes int64
 	Workers       int
 	BatchSize     int
-	CacheTTL      time.Duration
 
 	StreamMaxLen int64 // 0 = uncapped
+	EventTTL     time.Duration
+	StreamTTL    time.Duration
 
 	ForwardMaxRetries int
 	ForwardBackoff    time.Duration
@@ -34,16 +32,12 @@ type Config struct {
 // unset value. It returns an error only when a set value fails to parse.
 func Load() (Config, error) {
 	c := Config{
-		ListenAddr:     getStr("LISTEN_ADDR", ":8080"),
-		PortAPIBaseURL: getStr("PORT_API_BASE_URL", "https://api.getport.io"),
-		RedisAddr:      getStr("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:  getStr("REDIS_PASSWORD", ""),
+		ListenAddr:    getStr("LISTEN_ADDR", ":8080"),
+		RedisAddr:     getStr("REDIS_ADDR", "localhost:6379"),
+		RedisPassword: getStr("REDIS_PASSWORD", ""),
 	}
 
 	var err error
-	if c.PortAPITimeout, err = getDur("PORT_API_TIMEOUT", 10*time.Second); err != nil {
-		return c, err
-	}
 	if c.RedisDB, err = getInt("REDIS_DB", 0); err != nil {
 		return c, err
 	}
@@ -56,10 +50,13 @@ func Load() (Config, error) {
 	if c.BatchSize, err = getInt("QUEUE_BATCH_SIZE", 500); err != nil {
 		return c, err
 	}
-	if c.CacheTTL, err = getDur("CACHE_TTL", time.Hour); err != nil {
+	if c.StreamMaxLen, err = getInt64("REDIS_STREAM_MAXLEN", 0); err != nil {
 		return c, err
 	}
-	if c.StreamMaxLen, err = getInt64("REDIS_STREAM_MAXLEN", 0); err != nil {
+	if c.EventTTL, err = getDur("EVENT_TTL", time.Hour); err != nil {
+		return c, err
+	}
+	if c.StreamTTL, err = getDur("STREAM_TTL", time.Hour); err != nil {
 		return c, err
 	}
 	if c.ForwardMaxRetries, err = getInt("FORWARD_MAX_RETRIES", 3); err != nil {

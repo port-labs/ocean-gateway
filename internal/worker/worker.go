@@ -101,8 +101,7 @@ func (p *Pool) forwardBatch(ctx context.Context, batch []*event.Event) {
 				"count", len(failed),
 				"attempts", attempt+1,
 				"dropped_total", p.dropped.Load(),
-				"sample_orgId", failed[0].OrgID,
-				"sample_liveEventsUuid", failed[0].LiveEventsUUID,
+				"sample_logIngestId", failed[0].LogIngestID,
 			)
 			return
 		}

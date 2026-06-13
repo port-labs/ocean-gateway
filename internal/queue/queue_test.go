@@ -8,7 +8,7 @@ import (
 )
 
 func ev(payload string) *event.Event {
-	return &event.Event{OrgID: "org", LiveEventsUUID: "uuid", Payload: []byte(payload)}
+	return &event.Event{LogIngestID: "log", Payload: []byte(payload)}
 }
 
 func TestEnqueueDequeueFIFO(t *testing.T) {
