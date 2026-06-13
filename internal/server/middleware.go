@@ -2,12 +2,12 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"log/slog"
 
 	"github.com/port-labs/ocean-gateway/internal/metrics"
 )

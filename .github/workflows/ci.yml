@@ -58,7 +58,7 @@ jobs:
   # ── load test ────────────────────────────────────────────────────────────────
   load-test:
     name: Load Test (1M events)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8-cores
     services:
       redis:
         image: redis:7-alpine
