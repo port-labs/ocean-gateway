@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/port-labs/ocean-gateway/internal/version"
 )
 
 // PingFunc is a function that pings a dependency and returns any error.
@@ -25,6 +27,7 @@ func New(h *Handler, redisPing PingFunc, log *slog.Logger) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(requestLogger(log))
 
 	r.Get("/healthz", healthHandler(redisPing))
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
@@ -42,6 +45,8 @@ type componentStatus struct {
 type healthResponse struct {
 	Status     string                     `json:"status"` // "ok" | "degraded"
 	Components map[string]componentStatus `json:"components"`
+	Version    string                     `json:"version"`
+	Commit     string                     `json:"commit"`
 	GoVersion  string                     `json:"goVersion"`
 }
 
@@ -52,6 +57,8 @@ func healthHandler(redisPing PingFunc) http.HandlerFunc {
 
 		resp := healthResponse{
 			Status:    "ok",
+			Version:   version.Version,
+			Commit:    version.Commit,
 			GoVersion: runtime.Version(),
 			Components: map[string]componentStatus{
 				"gateway": {Status: "ok"},

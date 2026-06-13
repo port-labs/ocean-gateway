@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,11 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/port-labs/ocean-gateway/internal/config"
+	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
+	"github.com/port-labs/ocean-gateway/internal/version"
 )
 
 func main() {
@@ -28,21 +31,30 @@ func main() {
 		log.Error("config load failed", "err", err)
 		os.Exit(1)
 	}
-	log.Info("config loaded",
+	log.Info("starting ocean-gateway",
+		"version", version.Version,
+		"commit", version.Commit,
+		"date", version.Date,
+		"goVersion", version.GoVersion(),
 		"listenAddr", cfg.ListenAddr,
+		"redisAddr", cfg.RedisAddr,
 		"redisPoolSize", cfg.RedisPoolSize,
 		"streamMaxLen", cfg.StreamMaxLen,
 		"eventTTL", cfg.EventTTL.String(),
 		"streamTTL", cfg.StreamTTL.String(),
 		"writeMaxRetries", cfg.WriteMaxRetries,
+		"writeBackoff", cfg.WriteBackoff.String(),
 	)
 
+	// Register build info and start collecting Redis pool stats.
+	metrics.RegisterBuildInfo()
+
 	// Redis client + connectivity check.
-	rdb := redis.NewClient(&redis.Options{
+	rdb := goredis.NewClient(&goredis.Options{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
-		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default
+		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default (10 * GOMAXPROCS)
 	})
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
@@ -51,6 +63,19 @@ func main() {
 		os.Exit(1)
 	}
 	cancelPing()
+	log.Info("redis connected", "addr", cfg.RedisAddr)
+
+	metrics.RegisterRedisPool(func() metrics.PoolStats {
+		s := rdb.PoolStats()
+		return metrics.PoolStats{
+			Hits:       s.Hits,
+			Misses:     s.Misses,
+			Timeouts:   s.Timeouts,
+			TotalConns: s.TotalConns,
+			IdleConns:  s.IdleConns,
+			StaleConns: s.StaleConns,
+		}
+	})
 
 	streamWriter := redisstream.NewWriter(rdb, cfg.StreamMaxLen, cfg.EventTTL, cfg.StreamTTL)
 	h := server.NewHandler(streamWriter, log, cfg.WriteMaxRetries, cfg.WriteBackoff)
@@ -72,8 +97,8 @@ func main() {
 	// writes finish before closing Redis.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
-	log.Info("shutdown initiated")
+	sig := <-sigCh
+	log.Info("shutdown initiated", "signal", fmt.Sprintf("%s", sig))
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelShutdown()

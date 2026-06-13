@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── build & test ─────────────────────────────────────────────────────────────
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race)
+        run: go test ./... -race -timeout 120s
+
+  # ── lint ─────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  # ── load test ────────────────────────────────────────────────────────────────
+  load-test:
+    name: Load Test (1M events)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build gateway
+        run: go build -o /tmp/gateway ./cmd/gateway
+
+      - name: Start gateway
+        run: |
+          REDIS_ADDR=localhost:6379 /tmp/gateway &
+          echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for gateway to be healthy
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8080/healthz > /dev/null; then
+              echo "Gateway healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Gateway failed to become healthy" >&2
+          exit 1
+
+      - name: Run load test (1M events, 20 streams, concurrency 100)
+        run: |
+          go run ./cmd/loadtest \
+            -url http://localhost:8080 \
+            -events 1000000 \
+            -streams 20 \
+            -concurrency 100 \
+            2>&1 | tee /tmp/loadtest.out
+          cat /tmp/loadtest.out
+
+      - name: Assert load test results
+        run: |
+          # Extract values with awk (macOS and Linux compatible)
+          ACCEPTED=$(awk '/^ *202:/{print $2}' /tmp/loadtest.out | tr -d ' ')
+          THROUGHPUT=$(awk '/throughput:/{gsub(/[^0-9]/,"",$2); print $2}' /tmp/loadtest.out | head -1)
+
+          echo "Accepted:   $ACCEPTED / 1000000"
+          echo "Throughput: $THROUGHPUT events/sec"
+
+          # Require ≥ 99% acceptance rate (990000 / 1000000)
+          if [ -z "$ACCEPTED" ] || [ "$ACCEPTED" -lt 990000 ]; then
+            echo "FAIL: acceptance rate below 99% (got $ACCEPTED)" >&2
+            exit 1
+          fi
+
+          # Require ≥ 10000 events/sec throughput
+          if [ -z "$THROUGHPUT" ] || [ "$THROUGHPUT" -lt 10000 ]; then
+            echo "FAIL: throughput below 10K/sec (got $THROUGHPUT)" >&2
+            exit 1
+          fi
+
+          echo "PASS: acceptance=$ACCEPTED throughput=${THROUGHPUT}/sec"
+
+      - name: Stop gateway
+        if: always()
+        run: kill "$GATEWAY_PID" 2>/dev/null || true

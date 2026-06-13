@@ -1,5 +1,8 @@
 # ocean-gateway
 
+[![CI](https://github.com/port-labs/ocean-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/port-labs/ocean-gateway/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Stateless gateway for Ocean live events. It receives live-event webhooks and
 writes them, untouched, **straight to** a per-`logIngestId` Redis stream that
 the Ocean integration consumes. The gateway holds no buffer of its own — an
@@ -114,3 +117,50 @@ with:
 ```sh
 redis-cli --scan --pattern 'loadtest-ingest-*/live-events/raw/event-stream'
 ```
+
+Or use the runner script which also prints a performance summary:
+
+```sh
+./scripts/loadtest.sh -e 1000000 -s 20 -c 100
+```
+
+## Consuming the streams
+
+Integrations should use Redis Streams **consumer groups** (`XREADGROUP` + `XACK`)
+rather than plain `XREAD`. This gives at-least-once delivery — messages stay
+pending until acknowledged, and an integration that crashes mid-processing can
+reclaim its work on restart via `XAUTOCLAIM`.
+
+```sh
+# Create a consumer group
+redis-cli XGROUP CREATE "<logIngestId>/live-events/raw/event-stream" ocean-integration $ MKSTREAM
+
+# Read up to 100 pending messages
+redis-cli XREADGROUP GROUP ocean-integration worker-1 COUNT 100 STREAMS \
+  "<logIngestId>/live-events/raw/event-stream" ">"
+
+# Acknowledge after processing
+redis-cli XACK "<logIngestId>/live-events/raw/event-stream" ocean-integration <message-id>
+```
+
+## Producer contract
+
+A `503` from the gateway means Redis is temporarily unavailable. The event was
+**not** written. Producers must retry — the gateway has no internal buffer, so
+a `503` is the backpressure signal. A `202` guarantees the event is durably in
+the stream.
+
+## Retention notes
+
+`EVENT_TTL` and `STREAM_TTL` both default to `1h` and are independent:
+
+- **`EVENT_TTL`** trims individual entries via `XADD MINID` on every write — a
+  stream that receives events continuously will only ever hold the last hour's
+  worth of events.
+- **`STREAM_TTL`** is an `EXPIRE` refreshed on every write — a stream that
+  receives no events for the TTL is deleted entirely. Set `STREAM_TTL` longer
+  than `EVENT_TTL` if consumers may lag and you want idle streams to survive.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).

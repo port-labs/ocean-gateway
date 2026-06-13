@@ -90,11 +90,19 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	var err error
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
+			h.log.Debug("event written to stream", "logIngestId", e.LogIngestID)
 			return nil
 		}
 		if attempt == h.maxRetries {
 			break
 		}
+		h.log.Warn("redis write failed, retrying",
+			"logIngestId", e.LogIngestID,
+			"attempt", attempt+1,
+			"maxRetries", h.maxRetries,
+			"backoff", delay.String(),
+			"err", err,
+		)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

@@ -1,0 +1,37 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck        # unhandled errors
+    - govet           # go vet
+    - staticcheck     # comprehensive static analysis
+    - gosimple        # simplification suggestions
+    - ineffassign     # ineffectual assignments
+    - unused          # unused code
+    - misspell        # spelling in comments/strings
+    - gofmt           # formatting
+    - goimports       # import ordering
+    - revive          # general linter (replaces golint)
+    - bodyclose       # ensure http response bodies are closed
+    - noctx           # http requests without context
+    - gocritic        # opinionated but useful checks
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        disabled: true   # don't require doc comments on every export
+  gocritic:
+    disabled-checks:
+      - hugeParam        # we intentionally pass some structs by value
+
+issues:
+  exclude-rules:
+    # Test files get more latitude.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocritic
+  max-issues-per-linter: 0
+  max-same-issues: 0
