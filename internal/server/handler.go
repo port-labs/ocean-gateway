@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -55,6 +56,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		LogIngestID: logIngestID,
 		Payload:     body,
 		Headers:     headers,
+		ReceivedAt:  time.Now(),
 	}
 	if err := h.queue.Enqueue(e); err != nil {
 		// ErrFull (backpressure) or ErrClosed (shutting down).

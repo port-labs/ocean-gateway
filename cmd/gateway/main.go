@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/port-labs/ocean-gateway/internal/config"
+	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/queue"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
@@ -54,6 +55,7 @@ func main() {
 
 	// Dependencies.
 	q := queue.New(cfg.QueueMaxBytes)
+	metrics.RegisterQueueDepth(q.Len)
 	streamWriter := redisstream.NewWriter(rdb, cfg.StreamMaxLen, cfg.EventTTL, cfg.StreamTTL)
 	pool := worker.New(q, streamWriter, log, cfg.Workers, cfg.BatchSize, cfg.ForwardMaxRetries, cfg.ForwardBackoff)
 

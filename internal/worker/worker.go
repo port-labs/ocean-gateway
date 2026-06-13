@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/port-labs/ocean-gateway/internal/event"
+	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/queue"
 )
 
@@ -75,6 +76,14 @@ func (p *Pool) loop(ctx context.Context) {
 		if err == queue.ErrClosed {
 			return
 		}
+		dequeueTime := time.Now()
+		// Queue-delay: time each event spent waiting in the buffer.
+		for _, e := range batch {
+			metrics.QueueDequeuedTotal.Inc()
+			if !e.ReceivedAt.IsZero() {
+				metrics.QueueDelaySeconds.Observe(dequeueTime.Sub(e.ReceivedAt).Seconds())
+			}
+		}
 		p.forwardBatch(ctx, batch)
 	}
 }
@@ -85,10 +94,18 @@ func (p *Pool) forwardBatch(ctx context.Context, batch []*event.Event) {
 	pending := batch
 	delay := p.backoff
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
+		now := time.Now()
 		errs := p.fwd.AddBatch(ctx, pending)
+
 		var failed []*event.Event
 		for i, err := range errs {
-			if err != nil {
+			if err == nil {
+				// E2E: time from HTTP receipt to successful Redis write.
+				if !pending[i].ReceivedAt.IsZero() {
+					metrics.EventE2ESeconds.Observe(now.Sub(pending[i].ReceivedAt).Seconds())
+				}
+				metrics.EventsForwardedTotal.Inc()
+			} else {
 				failed = append(failed, pending[i])
 			}
 		}
@@ -97,6 +114,7 @@ func (p *Pool) forwardBatch(ctx context.Context, batch []*event.Event) {
 		}
 		if attempt == p.maxRetries {
 			p.dropped.Add(int64(len(failed)))
+			metrics.EventsDroppedTotal.Add(float64(len(failed)))
 			p.log.Error("dropping events after retries exhausted",
 				"count", len(failed),
 				"attempts", attempt+1,
@@ -109,6 +127,7 @@ func (p *Pool) forwardBatch(ctx context.Context, batch []*event.Event) {
 		select {
 		case <-ctx.Done():
 			p.dropped.Add(int64(len(pending)))
+			metrics.EventsDroppedTotal.Add(float64(len(pending)))
 			return
 		case <-time.After(delay):
 			delay *= 2

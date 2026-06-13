@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // New builds the HTTP handler with middleware and routes mounted.
@@ -22,6 +23,7 @@ func New(h *Handler, log *slog.Logger) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Post("/live-events/{logIngestId}/integration/webhook", h.Webhook)
 

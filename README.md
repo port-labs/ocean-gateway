@@ -54,6 +54,19 @@ On Redis failure it retries with backoff, then drops (logged + counted).
   stream key's `EXPIRE`, so a stream with no new events for the TTL is deleted
   entirely. Active streams never expire.
 
+## Metrics
+
+`GET /metrics` exposes Prometheus metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `gateway_events_forwarded_total` | Counter | Events successfully written to Redis |
+| `gateway_events_dropped_total` | Counter | Events dropped after Redis retry exhaustion |
+| `gateway_queue_dequeued_total` | Counter | Events pulled from the buffer (use `rate()` for handling rate) |
+| `gateway_queue_depth_events` | Gauge | Current number of events in the in-memory buffer |
+| `gateway_queue_delay_seconds` | Histogram | Time each event spent waiting in the buffer before a worker picked it up |
+| `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis XADD |
+
 ## Run
 
 ```sh
