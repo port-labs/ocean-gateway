@@ -58,7 +58,7 @@ jobs:
   # ── load test ────────────────────────────────────────────────────────────────
   load-test:
     name: Load Test (1M events)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8-cores
     services:
       redis:
         image: redis:7-alpine
@@ -129,6 +129,51 @@ jobs:
           fi
 
           echo "PASS: acceptance=$ACCEPTED throughput=${THROUGHPUT}/sec"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          OUT=/tmp/loadtest.out
+          parse() { awk -F': *' "/^ *$1:/{gsub(/^[[:space:]]+|[[:space:]]+$/,\"\",\$2); print \$2; exit}" "$OUT"; }
+
+          WALL=$(parse "wall time")
+          THROUGHPUT=$(parse "throughput")
+          ACCEPTED=$(awk '/^ *202:/{print $2}' "$OUT" | tr -d ' ')
+          REJECTED=$(awk '/^ *503:/{print $2}' "$OUT" | tr -d ' ')
+          TOTAL=1000000
+          LAT_MIN=$(parse "min")
+          LAT_P50=$(parse "p50")
+          LAT_P95=$(parse "p95")
+          LAT_P99=$(parse "p99")
+          LAT_MAX=$(parse "max")
+          LAT_AVG=$(parse "avg")
+
+          ACCEPTED=${ACCEPTED:-0}
+          REJECTED=${REJECTED:-0}
+          ACCEPT_PCT=$(awk "BEGIN{printf \"%.1f\", $ACCEPTED/$TOTAL*100}")
+
+          if [ "${ACCEPTED}" -ge 990000 ] 2>/dev/null; then
+            STATUS="✅ PASS"
+          else
+            STATUS="❌ FAIL"
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## $STATUS Load Test — 1M events / 20 streams / concurrency 100
+
+          | Metric | Value |
+          |--------|-------|
+          | Wall time | \`$WALL\` |
+          | Throughput | \`$THROUGHPUT\` |
+          | Accepted (202) | \`$ACCEPTED\` / \`$TOTAL\` ($ACCEPT_PCT%) |
+          | Rejected (503) | \`${REJECTED:-0}\` |
+
+          ### Latency (accepted path)
+
+          | p50 | p95 | p99 | min | max | avg |
+          |-----|-----|-----|-----|-----|-----|
+          | \`$LAT_P50\` | \`$LAT_P95\` | \`$LAT_P99\` | \`$LAT_MIN\` | \`$LAT_MAX\` | \`$LAT_AVG\` |
+          SUMMARY
 
       - name: Stop gateway
         if: always()

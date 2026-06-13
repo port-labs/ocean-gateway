@@ -130,7 +130,7 @@ func send(client *http.Client, baseURL, logIngestID string, seq int) (time.Durat
 	}
 	// Drain and close so the connection can be reused.
 	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return lat, resp.StatusCode, nil
 }
 

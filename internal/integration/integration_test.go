@@ -34,9 +34,12 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	defer ts.Close()
 
 	logIngestID := "pkhQJcQcUYfnTCHn"
-	req, _ := http.NewRequest(http.MethodPost,
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
 		ts.URL+"/live-events/"+logIngestID+"/integration/webhook",
 		strings.NewReader(`{"hello":"world"}`))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
 	req.Header.Set("X-Event-Type", "issue_updated")
 
 	resp, err := http.DefaultClient.Do(req)
