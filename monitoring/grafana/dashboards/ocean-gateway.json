@@ -1,0 +1,167 @@
+{
+  "title": "Ocean Gateway",
+  "uid": "ocean-gateway",
+  "tags": ["ocean", "gateway"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "row", "title": "Overview", "gridPos": {"x":0,"y":0,"w":24,"h":1}, "collapsed": false
+    },
+    {
+      "id": 2, "type": "stat", "title": "Throughput",
+      "gridPos": {"x":0,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area", "orientation": "auto"},
+      "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null}]}}},
+      "targets": [{"expr": "rate(gateway_events_forwarded_total[30s])", "legendFormat": "events/sec", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 3, "type": "stat", "title": "Events Failed",
+      "gridPos": {"x":4,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area"},
+      "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"red","value":0.1}]}}},
+      "targets": [{"expr": "rate(gateway_events_failed_total[30s])", "legendFormat": "failed/sec", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 4, "type": "stat", "title": "In-Flight Requests",
+      "gridPos": {"x":8,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":80}]}}},
+      "targets": [{"expr": "gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 5, "type": "stat", "title": "E2E Latency p99",
+      "gridPos": {"x":12,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":0.05},{"color":"red","value":0.2}]}}},
+      "targets": [{"expr": "histogram_quantile(0.99, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 6, "type": "stat", "title": "Total Forwarded",
+      "gridPos": {"x":16,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"blue","value":null}]}}},
+      "targets": [{"expr": "gateway_events_forwarded_total", "legendFormat": "total", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 7, "type": "stat", "title": "Redis Pool Connections",
+      "gridPos": {"x":20,"y":1,"w":4,"h":4},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null}]}}},
+      "targets": [{"expr": "gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"}],
+      "datasource": "Prometheus"
+    },
+
+    {
+      "id": 10, "type": "row", "title": "Throughput & Errors", "gridPos": {"x":0,"y":5,"w":24,"h":1}, "collapsed": false
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Event Rate",
+      "gridPos": {"x":0,"y":6,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "rate(gateway_events_forwarded_total[30s])", "legendFormat": "forwarded", "datasource": "Prometheus"},
+        {"expr": "rate(gateway_events_failed_total[30s])", "legendFormat": "failed", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "HTTP Requests by Status",
+      "gridPos": {"x":12,"y":6,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum by (status) (rate(gateway_http_requests_total[30s]))", "legendFormat": "{{status}}", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+
+    {
+      "id": 20, "type": "row", "title": "Latency", "gridPos": {"x":0,"y":14,"w":24,"h":1}, "collapsed": false
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "E2E Latency (HTTP receive → Redis write)",
+      "gridPos": {"x":0,"y":15,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.95, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.99, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Redis Write Latency (XADD round-trip)",
+      "gridPos": {"x":12,"y":15,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.95, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.99, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+
+    {
+      "id": 30, "type": "row", "title": "Redis Connection Pool", "gridPos": {"x":0,"y":23,"w":24,"h":1}, "collapsed": false
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Pool Connections",
+      "gridPos": {"x":0,"y":24,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"},
+        {"expr": "gateway_redis_pool_idle_conns", "legendFormat": "idle", "datasource": "Prometheus"},
+        {"expr": "gateway_redis_pool_stale_conns", "legendFormat": "stale", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 32, "type": "timeseries", "title": "Pool Hits / Misses / Timeouts",
+      "gridPos": {"x":12,"y":24,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "rate(gateway_redis_pool_hits_total[30s])", "legendFormat": "hits", "datasource": "Prometheus"},
+        {"expr": "rate(gateway_redis_pool_misses_total[30s])", "legendFormat": "misses", "datasource": "Prometheus"},
+        {"expr": "rate(gateway_redis_pool_timeouts_total[30s])", "legendFormat": "timeouts", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+
+    {
+      "id": 40, "type": "row", "title": "Saturation", "gridPos": {"x":0,"y":32,"w":24,"h":1}, "collapsed": false
+    },
+    {
+      "id": 41, "type": "timeseries", "title": "In-Flight Requests",
+      "gridPos": {"x":0,"y":33,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":80}]}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 42, "type": "timeseries", "title": "HTTP Request Duration by Route",
+      "gridPos": {"x":12,"y":33,"w":12,"h":8},
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (route, le) (rate(gateway_http_request_duration_seconds_bucket[30s])))", "legendFormat": "p99 {{route}}", "datasource": "Prometheus"}
+      ],
+      "datasource": "Prometheus"
+    }
+  ],
+  "schemaVersion": 38
+}
