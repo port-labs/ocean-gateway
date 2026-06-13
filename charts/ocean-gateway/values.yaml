@@ -12,7 +12,7 @@ fullnameOverride: ""
 replicaCount: 1
 
 image:
-  repository: ghcr.io/port-labs/ocean-gateway
+  repository: 185657066287.dkr.ecr.eu-west-1.amazonaws.com/ocean-gateway
   pullPolicy: IfNotPresent
   # Defaults to Chart.appVersion when empty.
   tag: ""
