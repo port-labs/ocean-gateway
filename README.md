@@ -1,50 +1,51 @@
 # ocean-gateway
 
-Buffering gateway for Ocean live events. It receives live-event webhooks and
-forwards them, untouched, to a per-`logIngestId` Redis stream that the Ocean
-integration consumes. The gateway is a pure buffer: it does not authenticate,
-resolve, or validate the event — the consuming integration does that when it
-reads the stream.
+Stateless gateway for Ocean live events. It receives live-event webhooks and
+writes them, untouched, **straight to** a per-`logIngestId` Redis stream that
+the Ocean integration consumes. The gateway holds no buffer of its own — an
+accepted event is durably in Redis before the `202` is returned, so a gateway
+crash never loses data and pods scale horizontally with no coordination. It does
+not authenticate, resolve, or validate the event; the consuming integration does
+that when it reads the stream.
 
 ```mermaid
 flowchart TD
     P["Live-event producer"] -->|"POST /live-events/{logIngestId}/integration/webhook"| H
 
-    subgraph GW["Gateway pod"]
+    subgraph GW["Gateway pod (stateless)"]
         direction TB
         H["HTTP handler"] --> CAP["Capture body + request headers,<br/>tag with logIngestId"]
-        CAP --> ENQ{"Enqueue<br/>(memory-bounded queue)"}
-        ENQ -->|queue full| E503["503 (backpressure)"]
-        ENQ -->|accepted| OK["202 Accepted"]
-
-        Q[("In-memory FIFO queue<br/>byte-bounded, QUEUE_MAX_BYTES")]
-        ENQ --> Q
-        Q --> W["Worker pool<br/>DequeueBatch → pipelined XADD<br/>retry-then-drop"]
+        CAP --> X["Synchronous XADD<br/>(bounded retry on failure)"]
+        X -->|write fails| E503["503 (producer retries)"]
+        X -->|write ok| OK["202 Accepted"]
     end
 
-    W -->|"XADD &lt;logIngestId&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per logIngestId")]
+    X -->|"XADD &lt;logIngestId&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per logIngestId")]
     R --> OI["Ocean integration<br/>(consumer: resolves + validates)"]
 ```
 
 ## Flow
 
-**Intake** — `POST /live-events/{logIngestId}/integration/webhook`
+`POST /live-events/{logIngestId}/integration/webhook`
 
 1. Extract `logIngestId` from the path.
 2. Read the raw request body and capture the request headers.
-3. Enqueue an event tagged with the `logIngestId`. If the queue is at its
-   memory bound → `503`. Else `202`.
+3. `XADD` the event to `<logIngestId>/live-events/raw/event-stream` (the `raw`
+   segment leaves room for other event classes later). On a transient Redis
+   error it retries with bounded backoff; on persistent failure it returns
+   `503` so the producer retries. On success it returns `202`.
 
-**Forward** — a worker pool drains the queue and `XADD`s each event to the
-per-integration stream `<logIngestId>/live-events/raw/event-stream` (the `raw`
-segment leaves room for other event classes later). Each entry has two fields:
+Each stream entry has two fields:
 
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
 | `headers` | the request headers, JSON object (`{"Header-Name":["value", ...]}`) |
 
-On Redis failure it retries with backoff, then drops (logged + counted).
+**Throughput** comes from concurrency, not an internal queue: each request does
+its own `XADD` through the Redis connection pool, so many in-flight requests
+parallelize naturally. Tune `REDIS_POOL_SIZE` to raise the concurrent-write
+ceiling.
 
 **Retention** — applied on every write:
 
@@ -60,12 +61,11 @@ On Redis failure it retries with backoff, then drops (logged + counted).
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `gateway_events_forwarded_total` | Counter | Events successfully written to Redis |
-| `gateway_events_dropped_total` | Counter | Events dropped after Redis retry exhaustion |
-| `gateway_queue_dequeued_total` | Counter | Events pulled from the buffer (use `rate()` for handling rate) |
-| `gateway_queue_depth_events` | Gauge | Current number of events in the in-memory buffer |
-| `gateway_queue_delay_seconds` | Histogram | Time each event spent waiting in the buffer before a worker picked it up |
-| `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis XADD |
+| `gateway_events_forwarded_total` | Counter | Events successfully written to Redis (use `rate()` for handling rate) |
+| `gateway_events_failed_total` | Counter | Events that failed to write after retries (caller got a 503) |
+| `gateway_inflight_requests` | Gauge | Requests currently blocked on a Redis write (saturation signal) |
+| `gateway_redis_write_seconds` | Histogram | Duration of the Redis write (XADD round-trip, incl. retries) |
+| `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis write |
 
 ## Run
 
@@ -81,14 +81,12 @@ REDIS_ADDR=localhost:6379 go run ./cmd/gateway
 | `REDIS_ADDR` | `localhost:6379` | Redis address |
 | `REDIS_PASSWORD` | _(empty)_ | Redis password |
 | `REDIS_DB` | `0` | Redis database |
-| `QUEUE_MAX_BYTES` | `1073741824` | In-memory queue bound (1 GiB) |
-| `WORKER_CONCURRENCY` | `8` | Forwarding worker goroutines |
-| `QUEUE_BATCH_SIZE` | `500` | Max events drained per pipelined `XADD` round-trip |
+| `REDIS_POOL_SIZE` | `0` | Redis connection pool size; bounds concurrent writes (`0` = go-redis default, 10×GOMAXPROCS) |
 | `REDIS_STREAM_MAXLEN` | `0` | Approx `MAXLEN` per stream, size-based (ignored when `EVENT_TTL` > 0; `0` = uncapped) |
 | `EVENT_TTL` | `1h` | Trim stream entries older than this via `MINID` (`0` = no age trim) |
 | `STREAM_TTL` | `1h` | Idle stream key expiry, refreshed on each write (`0` = no expiry) |
-| `FORWARD_MAX_RETRIES` | `3` | XADD retries before dropping |
-| `FORWARD_BACKOFF_BASE` | `100ms` | Initial backoff (doubles per retry) |
+| `WRITE_MAX_RETRIES` | `2` | Per-request XADD retries before returning 503 |
+| `WRITE_BACKOFF_BASE` | `50ms` | Initial backoff (doubles per retry) |
 
 ## Test
 

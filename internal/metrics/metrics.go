@@ -7,9 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// Buckets tuned to the observed latency range of the gateway: most events
-// complete in under 10ms, but queue drain under load can reach seconds.
-var latencyBuckets = []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+// Buckets tuned to the gateway's synchronous write path: most XADDs complete in
+// well under 10ms, with retries/backoff pushing the tail toward seconds.
+var latencyBuckets = []float64{.0005, .001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}
 
 var (
 	// EventsForwardedTotal counts events successfully written to Redis.
@@ -18,44 +18,36 @@ var (
 		Help: "Total number of events successfully written to a Redis stream.",
 	})
 
-	// EventsDroppedTotal counts events discarded after Redis retry exhaustion.
-	EventsDroppedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "gateway_events_dropped_total",
-		Help: "Total number of events dropped after exhausting Redis write retries.",
+	// EventsFailedTotal counts events that could not be written to Redis after
+	// exhausting retries (the caller received a 503 and should retry).
+	EventsFailedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "gateway_events_failed_total",
+		Help: "Total number of events that failed to write to Redis after retries.",
 	})
 
-	// QueueDequeuedTotal counts events pulled from the in-memory queue.
-	// Use rate(gateway_queue_dequeued_total[1m]) to derive the handling rate.
-	QueueDequeuedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "gateway_queue_dequeued_total",
-		Help: "Total number of events dequeued from the in-memory buffer (use rate() for handling rate).",
+	// InFlightRequests is the number of webhook requests currently being served
+	// (i.e. blocked on a Redis write). It is the key saturation signal now that
+	// writes are synchronous — sustained values near the Redis pool size mean
+	// the write path is the bottleneck.
+	InFlightRequests = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "gateway_inflight_requests",
+		Help: "Number of webhook requests currently being served (blocked on a Redis write).",
 	})
 
-	// QueueDelaySeconds measures how long each event waited in the in-memory
-	// queue before being picked up by a worker.
-	QueueDelaySeconds = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name:    "gateway_queue_delay_seconds",
-		Help:    "Time events spend in the in-memory queue before a worker dequeues them.",
+	// RedisWriteSeconds measures the duration of the Redis write itself (the
+	// XADD round-trip, including any retries), isolating Redis latency from
+	// handler overhead.
+	RedisWriteSeconds = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "gateway_redis_write_seconds",
+		Help:    "Duration of the Redis write (XADD round-trip, including retries).",
 		Buckets: latencyBuckets,
 	})
 
 	// EventE2ESeconds measures the end-to-end time from HTTP intake to a
-	// successful Redis XADD — i.e. queue wait + write latency.
+	// successful Redis write — the full handler latency the producer observes.
 	EventE2ESeconds = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "gateway_event_e2e_seconds",
-		Help:    "End-to-end time from event ingestion (HTTP receive) to successful Redis XADD.",
+		Help:    "End-to-end time from event ingestion (HTTP receive) to successful Redis write.",
 		Buckets: latencyBuckets,
 	})
 )
-
-// RegisterQueueDepth creates and registers a GaugeFunc that samples the current
-// number of events in the in-memory queue at every Prometheus scrape. Using a
-// GaugeFunc means zero overhead on the hot enqueue/dequeue path.
-func RegisterQueueDepth(depthFn func() int) {
-	promauto.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "gateway_queue_depth_events",
-		Help: "Current number of events buffered in the in-memory queue.",
-	}, func() float64 {
-		return float64(depthFn())
-	})
-}

@@ -15,17 +15,15 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
-
-	QueueMaxBytes int64
-	Workers       int
-	BatchSize     int
+	RedisPoolSize int // 0 = go-redis default (10 * GOMAXPROCS)
 
 	StreamMaxLen int64 // 0 = uncapped
 	EventTTL     time.Duration
 	StreamTTL    time.Duration
 
-	ForwardMaxRetries int
-	ForwardBackoff    time.Duration
+	// Per-request synchronous write retry policy.
+	WriteMaxRetries int
+	WriteBackoff    time.Duration
 }
 
 // Load builds a Config from environment variables, applying defaults for any
@@ -41,13 +39,7 @@ func Load() (Config, error) {
 	if c.RedisDB, err = getInt("REDIS_DB", 0); err != nil {
 		return c, err
 	}
-	if c.QueueMaxBytes, err = getInt64("QUEUE_MAX_BYTES", 1<<30); err != nil { // 1 GiB
-		return c, err
-	}
-	if c.Workers, err = getInt("WORKER_CONCURRENCY", 8); err != nil {
-		return c, err
-	}
-	if c.BatchSize, err = getInt("QUEUE_BATCH_SIZE", 500); err != nil {
+	if c.RedisPoolSize, err = getInt("REDIS_POOL_SIZE", 0); err != nil {
 		return c, err
 	}
 	if c.StreamMaxLen, err = getInt64("REDIS_STREAM_MAXLEN", 0); err != nil {
@@ -59,10 +51,10 @@ func Load() (Config, error) {
 	if c.StreamTTL, err = getDur("STREAM_TTL", time.Hour); err != nil {
 		return c, err
 	}
-	if c.ForwardMaxRetries, err = getInt("FORWARD_MAX_RETRIES", 3); err != nil {
+	if c.WriteMaxRetries, err = getInt("WRITE_MAX_RETRIES", 2); err != nil {
 		return c, err
 	}
-	if c.ForwardBackoff, err = getDur("FORWARD_BACKOFF_BASE", 100*time.Millisecond); err != nil {
+	if c.WriteBackoff, err = getDur("WRITE_BACKOFF_BASE", 50*time.Millisecond); err != nil {
 		return c, err
 	}
 	return c, nil

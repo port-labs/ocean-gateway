@@ -1,4 +1,6 @@
-// Command gateway runs the Ocean live-event buffering gateway.
+// Command gateway runs the Ocean live-event gateway. It writes each incoming
+// webhook straight to a Redis stream and holds no buffer of its own, so it is
+// stateless and horizontally scalable.
 package main
 
 import (
@@ -14,11 +16,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/port-labs/ocean-gateway/internal/config"
-	"github.com/port-labs/ocean-gateway/internal/metrics"
-	"github.com/port-labs/ocean-gateway/internal/queue"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
-	"github.com/port-labs/ocean-gateway/internal/worker"
 )
 
 func main() {
@@ -31,12 +30,11 @@ func main() {
 	}
 	log.Info("config loaded",
 		"listenAddr", cfg.ListenAddr,
-		"queueMaxBytes", cfg.QueueMaxBytes,
-		"workers", cfg.Workers,
-		"batchSize", cfg.BatchSize,
+		"redisPoolSize", cfg.RedisPoolSize,
 		"streamMaxLen", cfg.StreamMaxLen,
 		"eventTTL", cfg.EventTTL.String(),
 		"streamTTL", cfg.StreamTTL.String(),
+		"writeMaxRetries", cfg.WriteMaxRetries,
 	)
 
 	// Redis client + connectivity check.
@@ -44,6 +42,7 @@ func main() {
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
+		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default
 	})
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
@@ -53,28 +52,14 @@ func main() {
 	}
 	cancelPing()
 
-	// Dependencies.
-	q := queue.New(cfg.QueueMaxBytes)
-	metrics.RegisterQueueDepth(q.Len)
 	streamWriter := redisstream.NewWriter(rdb, cfg.StreamMaxLen, cfg.EventTTL, cfg.StreamTTL)
-	pool := worker.New(q, streamWriter, log, cfg.Workers, cfg.BatchSize, cfg.ForwardMaxRetries, cfg.ForwardBackoff)
-
-	h := server.NewHandler(q, log)
+	h := server.NewHandler(streamWriter, log, cfg.WriteMaxRetries, cfg.WriteBackoff)
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           server.New(h, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Start worker pool.
-	workerCtx, cancelWorkers := context.WithCancel(context.Background())
-	workersDone := make(chan struct{})
-	go func() {
-		pool.Run(workerCtx)
-		close(workersDone)
-	}()
-
-	// Start HTTP server.
 	go func() {
 		log.Info("gateway listening", "addr", cfg.ListenAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -83,28 +68,19 @@ func main() {
 		}
 	}()
 
-	// Wait for a shutdown signal.
+	// Wait for a shutdown signal, then stop accepting requests and let in-flight
+	// writes finish before closing Redis.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	log.Info("shutdown initiated")
 
-	// 1. Stop accepting new HTTP requests.
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelShutdown()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("http shutdown error", "err", err)
 	}
 
-	// 2. Close the queue so workers drain remaining events, then exit.
-	q.Close()
-	select {
-	case <-workersDone:
-	case <-shutdownCtx.Done():
-		log.Warn("drain timed out; forcing worker stop", "dropped", pool.Dropped())
-	}
-	cancelWorkers()
-
 	_ = rdb.Close()
-	log.Info("shutdown complete", "dropped", pool.Dropped())
+	log.Info("shutdown complete")
 }

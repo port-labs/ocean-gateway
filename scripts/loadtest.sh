@@ -137,7 +137,7 @@ LAT_AVG=$(field_after "avg" "$RESULT_FILE")
 
 # ── wait for Redis drain ──────────────────────────────────────────────────────
 echo
-bold "Waiting for Redis drain"; echo
+bold "Verifying Redis delivery"; echo
 DRAIN_START=$(date +%s)
 PREV=0
 while true; do
@@ -215,7 +215,7 @@ printf "  %-22s %s\n" "Events sent:"      "$EVENTS"
 printf "  %-22s %s\n" "Streams:"          "$STREAMS"
 printf "  %-22s %s\n" "Concurrency:"      "$CONCURRENCY"
 echo
-bold "  Intake (HTTP → queue)"; echo
+bold "  Intake (HTTP → Redis)"; echo
 printf "  %-22s %s\n" "Wall time:"        "$WALL"
 printf "  %-22s %s\n" "Throughput:"       "$THROUGHPUT"
 printf "  %-22s %s\n" "Accepted (202):"   "$(green "$ACCEPT_RATE")"
