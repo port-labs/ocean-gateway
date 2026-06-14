@@ -33,8 +33,13 @@ extraVolumeMounts: []
 redis:
   # Required. Address of the Redis instance, e.g. "redis:6379".
   addr: ""
-  # Optional Redis password. Stored in a Secret when set.
+  # Optional Redis username and password. Stored in a Secret when set.
+  username: ""
   password: ""
+  # Name of a pre-existing Secret to use instead of chart-managed values.
+  # The secret may contain any of: REDIS_ADDR, REDIS_USERNAME, REDIS_PASSWORD.
+  # When set, redis.addr/username/password are ignored and no Secret is created.
+  existingSecret: ""
   db: 0
   # Connection pool size. 0 = go-redis default (10 × GOMAXPROCS).
   # Raise this if gateway_inflight_requests is often near the pool ceiling.

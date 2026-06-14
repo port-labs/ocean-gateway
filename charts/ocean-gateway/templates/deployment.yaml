@@ -54,7 +54,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "ocean-gateway.configMapName" . }}
-            {{- if .Values.redis.password }}
+            {{- if .Values.redis.existingSecret }}
+            - secretRef:
+                name: {{ .Values.redis.existingSecret }}
+            {{- else if or .Values.redis.password .Values.redis.username }}
             - secretRef:
                 name: {{ include "ocean-gateway.secretName" . }}
             {{- end }}
