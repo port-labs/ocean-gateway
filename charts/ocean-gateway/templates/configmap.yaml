@@ -6,7 +6,9 @@ metadata:
     {{- include "ocean-gateway.labels" . | nindent 4 }}
 data:
   LISTEN_ADDR: ":{{ .Values.service.port }}"
-  REDIS_ADDR: {{ required "redis.addr is required" .Values.redis.addr | quote }}
+  {{- if not .Values.redis.existingSecret }}
+  REDIS_ADDR: {{ required "redis.addr is required when redis.existingSecret is not set" .Values.redis.addr | quote }}
+  {{- end }}
   REDIS_DB: {{ .Values.redis.db | toString | quote }}
   REDIS_POOL_SIZE: {{ .Values.redis.poolSize | toString | quote }}
   REDIS_STREAM_MAXLEN: {{ .Values.stream.maxLen | toString | quote }}
