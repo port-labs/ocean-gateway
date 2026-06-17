@@ -24,12 +24,12 @@ import (
 
 func main() {
 	var (
-		baseURL      = flag.String("url", "http://localhost:8080", "gateway base URL")
-		totalEvents  = flag.Int("events", 10000, "total number of events to send")
-		streams      = flag.Int("streams", 10, "number of distinct live-events UUID streams to spread events across")
-		concurrency  = flag.Int("concurrency", 50, "number of concurrent senders")
-		uuidPrefix   = flag.String("live-events-uuid-prefix", "loadtest-ingest-", "live-events UUID prefix; stream i uses <prefix><i>")
-		timeout      = flag.Duration("timeout", 10*time.Second, "per-request timeout")
+		baseURL     = flag.String("url", "http://localhost:8080", "gateway base URL")
+		totalEvents = flag.Int("events", 10000, "total number of events to send")
+		streams     = flag.Int("streams", 10, "number of distinct live-events UUID streams to spread events across")
+		concurrency = flag.Int("concurrency", 50, "number of concurrent senders")
+		uuidPrefix  = flag.String("live-events-uuid-prefix", "loadtest-ingest-", "live-events UUID prefix; stream i uses <prefix><i>")
+		timeout     = flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	)
 	flag.Parse()
 
