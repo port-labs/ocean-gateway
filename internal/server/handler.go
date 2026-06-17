@@ -39,7 +39,7 @@ func NewHandler(writer StreamWriter, log *slog.Logger, maxRetries int, backoff t
 	return &Handler{writer: writer, log: log, maxRetries: maxRetries, backoff: backoff}
 }
 
-// Webhook handles POST /live-events/{logIngestId}/integration/webhook.
+// Webhook handles POST /live-events/{logIngestId} and /live-events/{logIngestId}/*.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	metrics.InFlightRequests.Inc()
@@ -47,7 +47,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	logIngestID := chi.URLParam(r, "logIngestId")
 	if logIngestID == "" {
-		http.Error(w, "missing logIngestId", http.StatusBadRequest)
+		http.NotFound(w, r)
 		return
 	}
 

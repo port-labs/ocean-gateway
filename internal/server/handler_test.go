@@ -100,13 +100,41 @@ func TestWebhookRedisFailureReturns503(t *testing.T) {
 	}
 }
 
-func TestWebhookMissingLogIngestId(t *testing.T) {
-	h := newHandler(&stubWriter{})
-	rec := httptest.NewRecorder()
+func TestWebhookUnknownPathReturns404(t *testing.T) {
+	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet())
 	req := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader("{}"))
-	h.Webhook(rec, req) // no chi URL param => empty logIngestId
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d want 400", rec.Code)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d want 404", rec.Code)
+	}
+}
+
+func TestWebhookAlternatePathSuffix(t *testing.T) {
+	w := &stubWriter{}
+	h := newHandler(w)
+	srv := New(h, noopPing, "test", "none", quiet())
+
+	for _, path := range []string{
+		"/live-events/log123/integration/webhook",
+		"/live-events/log123/custom/hook",
+		"/live-events/log123",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("%s: status = %d want 202", path, rec.Code)
+		}
+	}
+
+	if len(w.events) != 3 {
+		t.Fatalf("writer got %d events want 3", len(w.events))
+	}
+	for _, e := range w.events {
+		if e.LogIngestID != "log123" {
+			t.Fatalf("logIngestId = %q want log123", e.LogIngestID)
+		}
 	}
 }
 
