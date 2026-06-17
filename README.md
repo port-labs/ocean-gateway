@@ -13,7 +13,7 @@ that when it reads the stream.
 
 ```mermaid
 flowchart TD
-    P["Live-event producer"] -->|"POST /live-events/{logIngestId}/integration/webhook"| H
+    P["Live-event producer"] -->|"POST /live-events/{logIngestId}/..."| H
 
     subgraph GW["Gateway pod (stateless)"]
         direction TB
@@ -29,9 +29,16 @@ flowchart TD
 
 ## Flow
 
-`POST /live-events/{logIngestId}/integration/webhook`
+`POST /live-events/{logIngestId}` or `POST /live-events/{logIngestId}/<any-suffix>`
 
-1. Extract `logIngestId` from the path.
+The path after `{logIngestId}` is ignored for routing to Redis — only the ID
+matters. Examples that all write to the same stream:
+
+- `/live-events/{logIngestId}`
+- `/live-events/{logIngestId}/integration/webhook`
+- `/live-events/{logIngestId}/webhook`
+
+1. Extract `logIngestId` from the path (first segment after `/live-events/`).
 2. Read the raw request body and capture the request headers.
 3. `XADD` the event to `<logIngestId>/live-events/raw/event-stream` (the `raw`
    segment leaves room for other event classes later). On a transient Redis
@@ -69,6 +76,20 @@ ceiling.
 | `gateway_inflight_requests` | Gauge | Requests currently blocked on a Redis write (saturation signal) |
 | `gateway_redis_write_seconds` | Histogram | Duration of the Redis write (XADD round-trip, incl. retries) |
 | `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis write |
+
+## On-premises webhook URL
+
+When running Ocean on-premises, configure each integration's webhook URL to
+point at your gateway using this path format:
+
+```
+/live-events/<logIngestId>
+```
+
+`<logIngestId>` is the integration's live-events UUID that used for making sure all events from all the intrgration webhooks will be written to the same stream.
+
+Events are always written to `<logIngestId>/live-events/raw/event-stream`,
+regardless of the URL suffix.
 
 ## Run
 
