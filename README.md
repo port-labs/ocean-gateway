@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Stateless gateway for Ocean live events. It receives live-event webhooks and
-writes them, untouched, **straight to** a per-`logIngestId` Redis stream that
+writes them, untouched, **straight to** a per-`liveEventsUUID` Redis stream that
 the Ocean integration consumes. The gateway holds no buffer of its own — an
 accepted event is durably in Redis before the `202` is returned, so a gateway
 crash never loses data and pods scale horizontally with no coordination. It does
@@ -13,43 +13,46 @@ that when it reads the stream.
 
 ```mermaid
 flowchart TD
-    P["Live-event producer"] -->|"POST /live-events/{logIngestId}/..."| H
+    P["Live-event producer"] -->|"POST /live-events/{liveEventsUUID}/..."| H
 
     subgraph GW["Gateway pod (stateless)"]
         direction TB
-        H["HTTP handler"] --> CAP["Capture body + request headers,<br/>tag with logIngestId"]
+        H["HTTP handler"] --> CAP["Capture body + request headers,<br/>tag with liveEventsUUID + webhook path"]
         CAP --> X["Synchronous XADD<br/>(bounded retry on failure)"]
         X -->|write fails| E503["503 (producer retries)"]
         X -->|write ok| OK["202 Accepted"]
     end
 
-    X -->|"XADD &lt;logIngestId&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per logIngestId")]
+    X -->|"XADD &lt;liveEventsUUID&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; body=&lt;body&gt; webhookPath=&lt;suffix&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per liveEventsUUID")]
     R --> OI["Ocean integration<br/>(consumer: resolves + validates)"]
 ```
 
 ## Flow
 
-`POST /live-events/{logIngestId}` or `POST /live-events/{logIngestId}/<any-suffix>`
+`POST /live-events/{liveEventsUUID}` or `POST /live-events/{liveEventsUUID}/<any-suffix>`
 
-The path after `{logIngestId}` is ignored for routing to Redis — only the ID
-matters. Examples that all write to the same stream:
+The path after `{liveEventsUUID}` is captured as `webhookPath` on the stream entry
+(empty when the request hits `/live-events/{liveEventsUUID}` with no suffix). All
+examples below write to the same stream:
 
-- `/live-events/{logIngestId}`
-- `/live-events/{logIngestId}/integration/webhook`
-- `/live-events/{logIngestId}/webhook`
+- `/live-events/{liveEventsUUID}`
+- `/live-events/{liveEventsUUID}/integration/webhook`
+- `/live-events/{liveEventsUUID}/webhook`
 
-1. Extract `logIngestId` from the path (first segment after `/live-events/`).
+1. Extract `liveEventsUUID` from the path (first segment after `/live-events/`).
 2. Read the raw request body and capture the request headers.
-3. `XADD` the event to `<logIngestId>/live-events/raw/event-stream` (the `raw`
+3. `XADD` the event to `<liveEventsUUID>/live-events/raw/event-stream` (the `raw`
    segment leaves room for other event classes later). On a transient Redis
    error it retries with bounded backoff; on persistent failure it returns
    `503` so the producer retries. On success it returns `202`.
 
-Each stream entry has two fields:
+Each stream entry has four fields:
 
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
+| `body` | the raw request body, byte-for-byte (same as `payload`) |
+| `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/` (empty when none) |
 | `headers` | the request headers, JSON object (`{"Header-Name":["value", ...]}`) |
 
 **Throughput** comes from concurrency, not an internal queue: each request does
@@ -83,13 +86,14 @@ When running Ocean on-premises, configure each integration's webhook URL to
 point at your gateway using this path format:
 
 ```
-/live-events/<logIngestId>
+/live-events/<liveEventsUUID>
 ```
 
-`<logIngestId>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
+`<liveEventsUUID>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
 
-Events are always written to `<logIngestId>/live-events/raw/event-stream`,
-regardless of the URL suffix.
+Events are always written to `<liveEventsUUID>/live-events/raw/event-stream`.
+The URL suffix is stored on each entry as `webhookPath` so consumers can tell
+which webhook endpoint received the event.
 
 ## Run
 
@@ -121,7 +125,7 @@ go test ./... -race
 ## Load test
 
 `cmd/loadtest` fires a burst of events at a running gateway, spread across N
-distinct `logIngestId` streams. Each request carries a JSON body and a couple
+distinct `liveEventsUUID` streams. Each request carries a JSON body and a couple
 of headers, exercising both the `payload` and `headers` fields written to the
 stream.
 
@@ -130,9 +134,9 @@ go run ./cmd/loadtest -url http://localhost:8080 -events 10000 -streams 10 -conc
 ```
 
 Flags: `-url`, `-events` (default 10000), `-streams` (default 10),
-`-concurrency` (default 50), `-log-ingest-prefix` (default `loadtest-ingest-`),
+`-concurrency` (default 50), `-live-events-uuid-prefix` (default `loadtest-ingest-`),
 `-timeout`. It reports throughput, status-code breakdown, and latency
-percentiles. Stream `i` uses `logIngestId = <prefix><i>`. Inspect afterward
+percentiles. Stream `i` uses `liveEventsUUID = <prefix><i>`. Inspect afterward
 with:
 
 ```sh
@@ -154,14 +158,14 @@ reclaim its work on restart via `XAUTOCLAIM`.
 
 ```sh
 # Create a consumer group
-redis-cli XGROUP CREATE "<logIngestId>/live-events/raw/event-stream" ocean-integration $ MKSTREAM
+redis-cli XGROUP CREATE "<liveEventsUUID>/live-events/raw/event-stream" ocean-integration $ MKSTREAM
 
 # Read up to 100 pending messages
 redis-cli XREADGROUP GROUP ocean-integration worker-1 COUNT 100 STREAMS \
-  "<logIngestId>/live-events/raw/event-stream" ">"
+  "<liveEventsUUID>/live-events/raw/event-stream" ">"
 
 # Acknowledge after processing
-redis-cli XACK "<logIngestId>/live-events/raw/event-stream" ocean-integration <message-id>
+redis-cli XACK "<liveEventsUUID>/live-events/raw/event-stream" ocean-integration <message-id>
 ```
 
 ## Producer contract

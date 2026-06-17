@@ -23,7 +23,7 @@ type StreamWriter interface {
 }
 
 // Handler implements the live-event intake flow. It writes each request
-// (body + headers) straight to a Redis stream keyed by the logIngestId and only
+// (body + headers) straight to a Redis stream keyed by the live-events UUID and only
 // returns 202 once the write succeeds — the gateway holds no buffer of its own,
 // so a crash never loses an accepted event. On a persistent Redis failure it
 // returns 503 so the producer retries (the producer is the buffer).
@@ -39,14 +39,14 @@ func NewHandler(writer StreamWriter, log *slog.Logger, maxRetries int, backoff t
 	return &Handler{writer: writer, log: log, maxRetries: maxRetries, backoff: backoff}
 }
 
-// Webhook handles POST /live-events/{logIngestId} and /live-events/{logIngestId}/*.
+// Webhook handles POST /live-events/{liveEventsUUID} and /live-events/{liveEventsUUID}/*.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	metrics.InFlightRequests.Inc()
 	defer metrics.InFlightRequests.Dec()
 
-	logIngestID := chi.URLParam(r, "logIngestId")
-	if logIngestID == "" {
+	liveEventsUUID := chi.URLParam(r, "liveEventsUUID")
+	if liveEventsUUID == "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -57,15 +57,24 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	headers, err := json.Marshal(r.Header)
+	flatHeaders := make(map[string]string, len(r.Header))
+	for k := range r.Header {
+		flatHeaders[k] = r.Header.Get(k)
+	}
+	headers, err := json.Marshal(flatHeaders)
 	if err != nil {
 		// http.Header marshals deterministically; treat a failure as a server bug.
-		h.log.Error("failed to encode headers", "logIngestId", logIngestID, "err", err)
+		h.log.Error("failed to encode headers", "liveEventsUUID", liveEventsUUID, "err", err)
 		http.Error(w, "failed to encode headers", http.StatusInternalServerError)
 		return
 	}
 
-	e := &event.Event{LogIngestID: logIngestID, Payload: body, Headers: headers}
+	e := &event.Event{
+		LiveEventsUUID: liveEventsUUID,
+		WebhookPath:    chi.URLParam(r, "*"),
+		Payload:        body,
+		Headers:        headers,
+	}
 
 	writeStart := time.Now()
 	err = h.write(r.Context(), e)
@@ -73,7 +82,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		metrics.EventsFailedTotal.Inc()
-		h.log.Error("failed to write event to redis", "logIngestId", logIngestID, "err", err)
+		h.log.Error("failed to write event to redis", "liveEventsUUID", liveEventsUUID, "err", err)
 		http.Error(w, "failed to persist event, retry", http.StatusServiceUnavailable)
 		return
 	}
@@ -90,14 +99,14 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	var err error
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
-			h.log.Debug("event written to stream", "logIngestId", e.LogIngestID)
+			h.log.Debug("event written to stream", "liveEventsUUID", e.LiveEventsUUID)
 			return nil
 		}
 		if attempt == h.maxRetries {
 			break
 		}
 		h.log.Warn("redis write failed, retrying",
-			"logIngestId", e.LogIngestID,
+			"liveEventsUUID", e.LiveEventsUUID,
 			"attempt", attempt+1,
 			"maxRetries", h.maxRetries,
 			"backoff", delay.String(),

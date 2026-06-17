@@ -43,10 +43,10 @@ func newHandler(w StreamWriter) *Handler {
 
 func noopPing(_ context.Context) error { return nil }
 
-func doRequest(t *testing.T, h *Handler, logIngestID, body string, headers map[string]string) *httptest.ResponseRecorder {
+func doRequest(t *testing.T, h *Handler, liveEventsUUID, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	srv := New(h, noopPing, "test", "none", quiet())
-	req := httptest.NewRequest(http.MethodPost, "/live-events/"+logIngestID+"/integration/webhook", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/live-events/"+liveEventsUUID+"/integration/webhook", strings.NewReader(body))
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -67,15 +67,18 @@ func TestWebhookSuccessWritesPayloadAndHeaders(t *testing.T) {
 		t.Fatalf("writer got %d events want 1", len(w.events))
 	}
 	e := w.events[0]
-	if e.LogIngestID != "log123" || string(e.Payload) != `{"a":1}` {
+	if e.LiveEventsUUID != "log123" || string(e.Payload) != `{"a":1}` {
 		t.Fatalf("event = %+v", e)
 	}
-	var hdr map[string][]string
+	if e.WebhookPath != "integration/webhook" {
+		t.Fatalf("webhookPath = %q want integration/webhook", e.WebhookPath)
+	}
+	var hdr map[string]string
 	if err := json.Unmarshal(e.Headers, &hdr); err != nil {
 		t.Fatalf("headers not json: %v", err)
 	}
-	if got := hdr["X-Event-Type"]; len(got) != 1 || got[0] != "issue_updated" {
-		t.Fatalf("X-Event-Type = %v", got)
+	if got := hdr["X-Event-Type"]; got != "issue_updated" {
+		t.Fatalf("X-Event-Type = %q want issue_updated", got)
 	}
 }
 
@@ -131,9 +134,13 @@ func TestWebhookAlternatePathSuffix(t *testing.T) {
 	if len(w.events) != 3 {
 		t.Fatalf("writer got %d events want 3", len(w.events))
 	}
-	for _, e := range w.events {
-		if e.LogIngestID != "log123" {
-			t.Fatalf("logIngestId = %q want log123", e.LogIngestID)
+	wantPaths := []string{"integration/webhook", "custom/hook", ""}
+	for i, e := range w.events {
+		if e.LiveEventsUUID != "log123" {
+			t.Fatalf("liveEventsUUID = %q want log123", e.LiveEventsUUID)
+		}
+		if e.WebhookPath != wantPaths[i] {
+			t.Fatalf("event %d webhookPath = %q want %q", i, e.WebhookPath, wantPaths[i])
 		}
 	}
 }

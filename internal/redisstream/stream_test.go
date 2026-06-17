@@ -26,9 +26,10 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	w := NewWriter(rdb, 0, 0, 0)
 	ctx := context.Background()
 	e := &event.Event{
-		LogIngestID: "log_1",
-		Payload:     []byte(`{"hello":"world"}`),
-		Headers:     []byte(`{"X-Event-Type":["issue_updated"]}`),
+		LiveEventsUUID: "log_1",
+		WebhookPath:    "integration/webhook",
+		Payload:        []byte(`{"hello":"world"}`),
+		Headers:        []byte(`{"X-Event-Type":["issue_updated"]}`),
 	}
 	if err := w.Add(ctx, e); err != nil {
 		t.Fatalf("add: %v", err)
@@ -44,6 +45,12 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	if got := entries[0].Values[payloadField]; got != `{"hello":"world"}` {
 		t.Fatalf("payload = %v", got)
 	}
+	if got := entries[0].Values[bodyField]; got != `{"hello":"world"}` {
+		t.Fatalf("body = %v", got)
+	}
+	if got := entries[0].Values[webhookPathField]; got != "integration/webhook" {
+		t.Fatalf("webhookPath = %v", got)
+	}
 	if got := entries[0].Values[headersField]; got != `{"X-Event-Type":["issue_updated"]}` {
 		t.Fatalf("headers = %v", got)
 	}
@@ -56,7 +63,7 @@ func TestStreamIdleTTLExpiresKey(t *testing.T) {
 	ctx := context.Background()
 
 	w := NewWriter(rdb, 0, 0, time.Hour)
-	if err := w.Add(ctx, &event.Event{LogIngestID: "log_ttl", Payload: []byte("x")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_ttl", Payload: []byte("x")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -79,11 +86,11 @@ func TestStreamIdleTTLRefreshedOnWrite(t *testing.T) {
 
 	w := NewWriter(rdb, 0, 0, time.Hour)
 	key := StreamKey("log_active")
-	if err := w.Add(ctx, &event.Event{LogIngestID: "log_active", Payload: []byte("1")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", Payload: []byte("1")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	mr.FastForward(50 * time.Minute)
-	if err := w.Add(ctx, &event.Event{LogIngestID: "log_active", Payload: []byte("2")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", Payload: []byte("2")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	mr.FastForward(20 * time.Minute)
@@ -107,7 +114,7 @@ func TestEventTTLTrimsOldEntries(t *testing.T) {
 	}
 
 	w := NewWriter(rdb, 0, time.Hour, 0)
-	if err := w.Add(ctx, &event.Event{LogIngestID: "log_age", Payload: []byte("new")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_age", Payload: []byte("new")}); err != nil {
 		t.Fatalf("add new: %v", err)
 	}
 

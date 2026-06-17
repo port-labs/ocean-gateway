@@ -33,9 +33,9 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	ts := httptest.NewServer(server.New(h, redisPing, "test", "none", log))
 	defer ts.Close()
 
-	logIngestID := "pkhQJcQcUYfnTCHn"
+	liveEventsUUID := "pkhQJcQcUYfnTCHn"
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
-		ts.URL+"/live-events/"+logIngestID+"/integration/webhook",
+		ts.URL+"/live-events/"+liveEventsUUID+"/integration/webhook",
 		strings.NewReader(`{"hello":"world"}`))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
@@ -52,7 +52,7 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	}
 
 	// Synchronous write: the event must be in the stream immediately on 202.
-	key := redisstream.StreamKey(logIngestID)
+	key := redisstream.StreamKey(liveEventsUUID)
 	entries, err := rdb.XRange(context.Background(), key, "-", "+").Result()
 	if err != nil {
 		t.Fatalf("xrange: %v", err)
@@ -63,12 +63,18 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	if entries[0].Values["payload"] != `{"hello":"world"}` {
 		t.Fatalf("payload = %v", entries[0].Values["payload"])
 	}
-	var hdr map[string][]string
+	if entries[0].Values["webhookPath"] != "integration/webhook" {
+		t.Fatalf("webhookPath = %v", entries[0].Values["webhookPath"])
+	}
+	if entries[0].Values["body"] != `{"hello":"world"}` {
+		t.Fatalf("body = %v", entries[0].Values["body"])
+	}
+	var hdr map[string]string
 	if err := json.Unmarshal([]byte(entries[0].Values["headers"].(string)), &hdr); err != nil {
 		t.Fatalf("headers not json: %v", err)
 	}
-	if got := hdr["X-Event-Type"]; len(got) != 1 || got[0] != "issue_updated" {
-		t.Fatalf("X-Event-Type = %v", got)
+	if got := hdr["X-Event-Type"]; got != "issue_updated" {
+		t.Fatalf("X-Event-Type = %q want issue_updated", got)
 	}
 
 	// Stream key carries the idle TTL.

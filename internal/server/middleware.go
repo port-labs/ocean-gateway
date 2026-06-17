@@ -44,7 +44,7 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 			latency := time.Since(start)
 
 			// Use the matched route pattern as the label, not the raw path,
-			// to avoid high cardinality from logIngestId values.
+			// to avoid high cardinality from live-events UUID values.
 			route := chi.RouteContext(r.Context()).RoutePattern()
 			if route == "" {
 				route = r.URL.Path
