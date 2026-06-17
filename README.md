@@ -86,7 +86,7 @@ point at your gateway using this path format:
 /live-events/<logIngestId>
 ```
 
-`<logIngestId>` is the integration's live-events UUID that used for making sure all events from all the intrgration webhooks will be written to the same stream.
+`<logIngestId>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
 
 Events are always written to `<logIngestId>/live-events/raw/event-stream`,
 regardless of the URL suffix.
