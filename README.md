@@ -23,7 +23,7 @@ flowchart TD
         X -->|write ok| OK["202 Accepted"]
     end
 
-    X -->|"XADD &lt;liveEventsUUID&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; body=&lt;body&gt; webhookPath=&lt;suffix&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per liveEventsUUID")]
+    X -->|"XADD &lt;liveEventsUUID&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; webhookPath=&lt;suffix&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per liveEventsUUID")]
     R --> OI["Ocean integration<br/>(consumer: resolves + validates)"]
 ```
 
@@ -46,14 +46,13 @@ examples below write to the same stream:
    error it retries with bounded backoff; on persistent failure it returns
    `503` so the producer retries. On success it returns `202`.
 
-Each stream entry has four fields:
+Each stream entry has three fields:
 
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
-| `body` | the raw request body, byte-for-byte (same as `payload`) |
 | `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/` (empty when none) |
-| `headers` | the request headers, JSON object (`{"Header-Name":["value", ...]}`) |
+| `headers` | the request headers, JSON object (`{"Header-Name":"value"}`; multiple values for one name are joined with `, `) |
 
 **Throughput** comes from concurrency, not an internal queue: each request does
 its own `XADD` through the Redis connection pool, so many in-flight requests

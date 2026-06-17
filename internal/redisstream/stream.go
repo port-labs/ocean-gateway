@@ -21,7 +21,6 @@ import (
 // Stream entry field names.
 const (
 	payloadField     = "payload"
-	bodyField        = "body"
 	webhookPathField = "webhookPath"
 	headersField     = "headers"
 )
@@ -76,7 +75,6 @@ func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
 		Stream: StreamKey(e.LiveEventsUUID),
 		Values: map[string]any{
 			payloadField:     e.Payload,
-			bodyField:        e.Payload,
 			webhookPathField: e.WebhookPath,
 			headersField:     e.Headers,
 		},

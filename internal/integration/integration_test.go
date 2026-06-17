@@ -66,9 +66,6 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	if entries[0].Values["webhookPath"] != "integration/webhook" {
 		t.Fatalf("webhookPath = %v", entries[0].Values["webhookPath"])
 	}
-	if entries[0].Values["body"] != `{"hello":"world"}` {
-		t.Fatalf("body = %v", entries[0].Values["body"])
-	}
 	var hdr map[string]string
 	if err := json.Unmarshal([]byte(entries[0].Values["headers"].(string)), &hdr); err != nil {
 		t.Fatalf("headers not json: %v", err)

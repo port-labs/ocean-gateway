@@ -45,9 +45,6 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	if got := entries[0].Values[payloadField]; got != `{"hello":"world"}` {
 		t.Fatalf("payload = %v", got)
 	}
-	if got := entries[0].Values[bodyField]; got != `{"hello":"world"}` {
-		t.Fatalf("body = %v", got)
-	}
 	if got := entries[0].Values[webhookPathField]; got != "integration/webhook" {
 		t.Fatalf("webhookPath = %v", got)
 	}
