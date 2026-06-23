@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -57,11 +56,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flatHeaders := make(map[string]string, len(r.Header))
-	for k := range r.Header {
-		flatHeaders[k] = r.Header.Get(k)
-	}
-	headers, err := json.Marshal(flatHeaders)
+	headers, err := event.MarshalRequestHeaders(r.Header)
 	if err != nil {
 		// http.Header marshals deterministically; treat a failure as a server bug.
 		h.log.Error("failed to encode headers", "liveEventsUUID", liveEventsUUID, "err", err)

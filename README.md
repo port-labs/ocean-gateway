@@ -31,13 +31,20 @@ flowchart TD
 
 `POST /live-events/{liveEventsUUID}` or `POST /live-events/{liveEventsUUID}/<any-suffix>`
 
-The path after `{liveEventsUUID}` is captured as `webhookPath` on the stream entry
-(empty when the request hits `/live-events/{liveEventsUUID}` with no suffix). All
-examples below write to the same stream:
+The path after `{liveEventsUUID}` is captured verbatim as `webhookPath` on the
+stream entry (empty when the request hits `/live-events/{liveEventsUUID}` with
+no suffix). Different suffixes still write to the **same** stream for a given
+UUID — only the `webhookPath` field differs:
 
-- `/live-events/{liveEventsUUID}`
-- `/live-events/{liveEventsUUID}/integration/webhook`
-- `/live-events/{liveEventsUUID}/webhook`
+| Request path | `webhookPath` stored |
+|--------------|----------------------|
+| `/live-events/{liveEventsUUID}` | _(empty)_ |
+| `/live-events/{liveEventsUUID}/integration/webhook` | `integration/webhook` |
+| `/live-events/{liveEventsUUID}/webhook` | `webhook` |
+| `/live-events/{liveEventsUUID}/custom/hook` | `custom/hook` |
+
+The gateway does **not** normalize the suffix. Ocean's Redis stream consumer
+does — see [webhookPath and Ocean routing](#webhookpath-and-ocean-routing) below.
 
 1. Extract `liveEventsUUID` from the path (first segment after `/live-events/`).
 2. Read the raw request body and capture the request headers.
@@ -51,8 +58,23 @@ Each stream entry has three fields:
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
-| `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/` (empty when none) |
+| `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/`, stored as-is (empty when none) |
 | `headers` | the request headers, JSON object (`{"Header-Name":"value"}`; multiple values for one name are joined with `, `) |
+
+### webhookPath and Ocean routing
+
+The gateway only stores the URL suffix; it does not rewrite it. When an Ocean
+integration reads the stream, its Redis consumer normalizes `webhookPath` before
+matching a registered webhook processor (see
+`port_ocean/consumers/redis_stream_consumer.py` in the Ocean repo):
+
+1. Strip leading and trailing `/` characters.
+2. Optionally strip an `integration/` prefix.
+3. Prepend `/` and route to the processor registered at that path.
+
+Do not assume every suffix is rewritten to `/webhook`. Arbitrary suffixes must
+match a path the integration actually registered. When configuring provider
+webhook URLs for on-prem, use `/live-events/<liveEventsUUID>`.
 
 **Throughput** comes from concurrency, not an internal queue: each request does
 its own `XADD` through the Redis connection pool, so many in-flight requests
@@ -91,8 +113,8 @@ point at your gateway using this path format:
 `<liveEventsUUID>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
 
 Events are always written to `<liveEventsUUID>/live-events/raw/event-stream`.
-The URL suffix is stored on each entry as `webhookPath` so consumers can tell
-which webhook endpoint received the event.
+The URL suffix is stored on each entry as `webhookPath` so Ocean can route the
+event to the correct webhook processor.
 
 ## Run
 

@@ -2,6 +2,8 @@ package redisstream
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -25,11 +27,19 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 
 	w := NewWriter(rdb, 0, 0, 0)
 	ctx := context.Background()
+
+	reqHdr := http.Header{}
+	reqHdr.Set("X-Event-Type", "issue_updated")
+	headers, err := event.MarshalRequestHeaders(reqHdr)
+	if err != nil {
+		t.Fatalf("marshal headers: %v", err)
+	}
+
 	e := &event.Event{
 		LiveEventsUUID: "log_1",
 		WebhookPath:    "integration/webhook",
 		Payload:        []byte(`{"hello":"world"}`),
-		Headers:        []byte(`{"X-Event-Type":["issue_updated"]}`),
+		Headers:        headers,
 	}
 	if err := w.Add(ctx, e); err != nil {
 		t.Fatalf("add: %v", err)
@@ -48,8 +58,12 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	if got := entries[0].Values[webhookPathField]; got != "integration/webhook" {
 		t.Fatalf("webhookPath = %v", got)
 	}
-	if got := entries[0].Values[headersField]; got != `{"X-Event-Type":["issue_updated"]}` {
-		t.Fatalf("headers = %v", got)
+	var hdr map[string]string
+	if err := json.Unmarshal([]byte(entries[0].Values[headersField].(string)), &hdr); err != nil {
+		t.Fatalf("headers not json map[string]string: %v", err)
+	}
+	if got := hdr["X-Event-Type"]; got != "issue_updated" {
+		t.Fatalf("X-Event-Type = %q want issue_updated", got)
 	}
 }
 
