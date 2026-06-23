@@ -13,7 +13,7 @@ that when it reads the stream.
 
 ```mermaid
 flowchart TD
-    P["Live-event producer"] -->|"POST /live-events/{liveEventsUUID}/..."| H
+    P["Live-event producer"] -->|"POST /live-events/{liveEventsUUID}/integration/..."| H
 
     subgraph GW["Gateway pod (stateless)"]
         direction TB
@@ -29,22 +29,31 @@ flowchart TD
 
 ## Flow
 
-`POST /live-events/{liveEventsUUID}` or `POST /live-events/{liveEventsUUID}/<any-suffix>`
+Ocean integrations subscribe to provider webhooks at:
 
-The path after `{liveEventsUUID}` is captured verbatim as `webhookPath` on the
-stream entry (empty when the request hits `/live-events/{liveEventsUUID}` with
-no suffix). Different suffixes still write to the **same** stream for a given
-UUID — only the `webhookPath` field differs:
+```
+POST /live-events/{liveEventsUUID}/integration/{webhookSuffix}
+```
+
+`{webhookSuffix}` is the path each integration registers for its webhook
+processor.
+`POST /live-events/{liveEventsUUID}` with no suffix — but **Ocean's canonical
+webhook URL always includes the `integration/` prefix**.
+
+Everything after `{liveEventsUUID}/` is captured verbatim as `webhookPath` on
+the stream entry. Different suffixes still write to the **same** stream for a
+given UUID — only the `webhookPath` field differs:
 
 | Request path | `webhookPath` stored |
 |--------------|----------------------|
-| `/live-events/{liveEventsUUID}` | _(empty)_ |
 | `/live-events/{liveEventsUUID}/integration/webhook` | `integration/webhook` |
-| `/live-events/{liveEventsUUID}/webhook` | `webhook` |
-| `/live-events/{liveEventsUUID}/custom/hook` | `custom/hook` |
+| `/live-events/{liveEventsUUID}/integration/pull-request` | `integration/pull-request` |
+| `/live-events/{liveEventsUUID}/integration/github/webhook` | `integration/github/webhook` |
+| `/live-events/{liveEventsUUID}` _(no suffix)_ | _(empty)_ |
 
 The gateway does **not** normalize the suffix. Ocean's Redis stream consumer
-does — see [webhookPath and Ocean routing](#webhookpath-and-ocean-routing) below.
+strips the `integration/` prefix and routes to the registered processor — see
+[webhookPath and Ocean routing](#webhookpath-and-ocean-routing) below.
 
 1. Extract `liveEventsUUID` from the path (first segment after `/live-events/`).
 2. Read the raw request body and capture the request headers.
@@ -74,7 +83,8 @@ matching a registered webhook processor (see
 
 Do not assume every suffix is rewritten to `/webhook`. Arbitrary suffixes must
 match a path the integration actually registered. When configuring provider
-webhook URLs for on-prem, use `/live-events/<liveEventsUUID>`.
+webhook URLs for on-prem, use
+`/live-events/<liveEventsUUID>/integration/<webhookSuffix>`.
 
 **Throughput** comes from concurrency, not an internal queue: each request does
 its own `XADD` through the Redis connection pool, so many in-flight requests
@@ -107,10 +117,14 @@ When running Ocean on-premises, configure each integration's webhook URL to
 point at your gateway using this path format:
 
 ```
-/live-events/<liveEventsUUID>
+/live-events/<liveEventsUUID>/integration/<webhookSuffix>
 ```
 
-`<liveEventsUUID>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
+`<liveEventsUUID>` is the integration's live-events UUID. `<webhookSuffix>` is
+the path the integration registered for that webhook processor (for example
+`webhook`). Reuse the same `liveEventsUUID` across all provider-specific
+webhook URLs that belong to the same integration. This ensures events from
+multiple webhooks are written to a single dedicated Redis stream.
 
 Events are always written to `<liveEventsUUID>/live-events/raw/event-stream`.
 The URL suffix is stored on each entry as `webhookPath` so Ocean can route the
