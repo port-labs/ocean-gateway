@@ -1,4 +1,4 @@
-// Package redisstream forwards events to per-logIngestId Redis streams.
+// Package redisstream forwards events to per-live-events-UUID Redis streams.
 //
 // Two retention controls are applied on every write:
 //   - event TTL: entries older than eventTTL are trimmed via XADD MINID, so a
@@ -20,8 +20,9 @@ import (
 
 // Stream entry field names.
 const (
-	payloadField = "payload"
-	headersField = "headers"
+	payloadField     = "payload"
+	webhookPathField = "webhookPath"
+	headersField     = "headers"
 )
 
 // Writer appends events to Redis streams via XADD.
@@ -51,9 +52,9 @@ func NewWriter(rdb redis.Cmdable, maxLen int64, eventTTL, streamTTL time.Duratio
 }
 
 // StreamKey is the per-integration stream key. The "raw" segment leaves room
-// for other event classes under the same logIngestId namespace later.
-func StreamKey(logIngestID string) string {
-	return fmt.Sprintf("%s/live-events/raw/event-stream", logIngestID)
+// for other event classes under the same live-events UUID namespace later.
+func StreamKey(liveEventsUUID string) string {
+	return fmt.Sprintf("%s/live-events/raw/event-stream", liveEventsUUID)
 }
 
 // Add appends a single event to its stream.
@@ -64,17 +65,18 @@ func (w *Writer) Add(ctx context.Context, e *event.Event) error {
 	// XADD + EXPIRE together so the idle TTL is refreshed atomically-enough.
 	pipe := w.rdb.Pipeline()
 	add := pipe.XAdd(ctx, w.argsFor(e))
-	pipe.Expire(ctx, StreamKey(e.LogIngestID), w.streamTTL)
+	pipe.Expire(ctx, StreamKey(e.LiveEventsUUID), w.streamTTL)
 	_, _ = pipe.Exec(ctx)
 	return add.Err()
 }
 
 func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
 	args := &redis.XAddArgs{
-		Stream: StreamKey(e.LogIngestID),
+		Stream: StreamKey(e.LiveEventsUUID),
 		Values: map[string]any{
-			payloadField: e.Payload,
-			headersField: e.Headers,
+			payloadField:     e.Payload,
+			webhookPathField: e.WebhookPath,
+			headersField:     e.Headers,
 		},
 	}
 	switch {

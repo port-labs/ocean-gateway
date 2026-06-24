@@ -7,9 +7,9 @@
 # Options:
 #   -u URL          Gateway base URL          (default: http://localhost:8080)
 #   -e EVENTS       Total events to send      (default: 10000)
-#   -s STREAMS      Distinct logIngestId streams (default: 10)
+#   -s STREAMS      Distinct live-events UUID streams (default: 10)
 #   -c CONCURRENCY  Concurrent senders        (default: 50)
-#   -p PREFIX       logIngestId prefix        (default: loadtest-ingest-)
+#   -p PREFIX       live-events UUID prefix   (default: loadtest-ingest-)
 #   -r REDIS        Redis address             (default: localhost:6379)
 #   -w WAIT         Max seconds to wait for drain (default: 120)
 #   -f              Flush matching streams before run
@@ -108,7 +108,7 @@ go run "$REPO_ROOT/cmd/loadtest" \
   -events "$EVENTS" \
   -streams "$STREAMS" \
   -concurrency "$CONCURRENCY" \
-  -log-ingest-prefix "$PREFIX" \
+  -live-events-uuid-prefix "$PREFIX" \
   2>&1 | tee "$RESULT_FILE"
 
 END_TS=$(date +%s)

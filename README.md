@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Stateless gateway for Ocean live events. It receives live-event webhooks and
-writes them, untouched, **straight to** a per-`logIngestId` Redis stream that
+writes them, untouched, **straight to** a per-`liveEventsUUID` Redis stream that
 the Ocean integration consumes. The gateway holds no buffer of its own — an
 accepted event is durably in Redis before the `202` is returned, so a gateway
 crash never loses data and pods scale horizontally with no coordination. It does
@@ -13,44 +13,78 @@ that when it reads the stream.
 
 ```mermaid
 flowchart TD
-    P["Live-event producer"] -->|"POST /live-events/{logIngestId}/..."| H
+    P["Live-event producer"] -->|"POST /live-events/{liveEventsUUID}/integration/..."| H
 
     subgraph GW["Gateway pod (stateless)"]
         direction TB
-        H["HTTP handler"] --> CAP["Capture body + request headers,<br/>tag with logIngestId"]
+        H["HTTP handler"] --> CAP["Capture body + request headers,<br/>tag with liveEventsUUID + webhook path"]
         CAP --> X["Synchronous XADD<br/>(bounded retry on failure)"]
         X -->|write fails| E503["503 (producer retries)"]
         X -->|write ok| OK["202 Accepted"]
     end
 
-    X -->|"XADD &lt;logIngestId&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per logIngestId")]
+    X -->|"XADD &lt;liveEventsUUID&gt;/live-events/raw/event-stream<br/>payload=&lt;body&gt; webhookPath=&lt;suffix&gt; headers=&lt;json&gt;"| R[("Redis streams<br/>one per liveEventsUUID")]
     R --> OI["Ocean integration<br/>(consumer: resolves + validates)"]
 ```
 
 ## Flow
 
-`POST /live-events/{logIngestId}` or `POST /live-events/{logIngestId}/<any-suffix>`
+Ocean integrations subscribe to provider webhooks at:
 
-The path after `{logIngestId}` is ignored for routing to Redis — only the ID
-matters. Examples that all write to the same stream:
+```
+POST /live-events/{liveEventsUUID}/integration/{webhookSuffix}
+```
 
-- `/live-events/{logIngestId}`
-- `/live-events/{logIngestId}/integration/webhook`
-- `/live-events/{logIngestId}/webhook`
+`{webhookSuffix}` is the path each integration registers for its webhook
+processor.
+`POST /live-events/{liveEventsUUID}` with no suffix — but **Ocean's canonical
+webhook URL always includes the `integration/` prefix**.
 
-1. Extract `logIngestId` from the path (first segment after `/live-events/`).
+Everything after `{liveEventsUUID}/` is captured verbatim as `webhookPath` on
+the stream entry. Different suffixes still write to the **same** stream for a
+given UUID — only the `webhookPath` field differs:
+
+| Request path | `webhookPath` stored |
+|--------------|----------------------|
+| `/live-events/{liveEventsUUID}/integration/webhook` | `integration/webhook` |
+| `/live-events/{liveEventsUUID}/integration/pull-request` | `integration/pull-request` |
+| `/live-events/{liveEventsUUID}/integration/github/webhook` | `integration/github/webhook` |
+| `/live-events/{liveEventsUUID}` _(no suffix)_ | _(empty)_ |
+
+The gateway does **not** normalize the suffix. Ocean's Redis stream consumer
+strips the `integration/` prefix and routes to the registered processor — see
+[webhookPath and Ocean routing](#webhookpath-and-ocean-routing) below.
+
+1. Extract `liveEventsUUID` from the path (first segment after `/live-events/`).
 2. Read the raw request body and capture the request headers.
-3. `XADD` the event to `<logIngestId>/live-events/raw/event-stream` (the `raw`
+3. `XADD` the event to `<liveEventsUUID>/live-events/raw/event-stream` (the `raw`
    segment leaves room for other event classes later). On a transient Redis
    error it retries with bounded backoff; on persistent failure it returns
    `503` so the producer retries. On success it returns `202`.
 
-Each stream entry has two fields:
+Each stream entry has three fields:
 
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
-| `headers` | the request headers, JSON object (`{"Header-Name":["value", ...]}`) |
+| `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/`, stored as-is (empty when none) |
+| `headers` | the request headers, JSON object (`{"Header-Name":"value"}`; multiple values for one name are joined with `, `) |
+
+### webhookPath and Ocean routing
+
+The gateway only stores the URL suffix; it does not rewrite it. When an Ocean
+integration reads the stream, its Redis consumer normalizes `webhookPath` before
+matching a registered webhook processor (see
+`port_ocean/consumers/redis_stream_consumer.py` in the Ocean repo):
+
+1. Strip leading and trailing `/` characters.
+2. Optionally strip an `integration/` prefix.
+3. Prepend `/` and route to the processor registered at that path.
+
+Do not assume every suffix is rewritten to `/webhook`. Arbitrary suffixes must
+match a path the integration actually registered. When configuring provider
+webhook URLs for on-prem, use
+`/live-events/<liveEventsUUID>/integration/<webhookSuffix>`.
 
 **Throughput** comes from concurrency, not an internal queue: each request does
 its own `XADD` through the Redis connection pool, so many in-flight requests
@@ -83,13 +117,18 @@ When running Ocean on-premises, configure each integration's webhook URL to
 point at your gateway using this path format:
 
 ```
-/live-events/<logIngestId>
+/live-events/<liveEventsUUID>/integration/<webhookSuffix>
 ```
 
-`<logIngestId>` is the integration's live-events UUID. Reuse the same value across all provider-specific webhook URLs that belong to the same integration. This ensures events from multiple webhooks are written to a single dedicated Redis stream.
+`<liveEventsUUID>` is the integration's live-events UUID. `<webhookSuffix>` is
+the path the integration registered for that webhook processor (for example
+`webhook`). Reuse the same `liveEventsUUID` across all provider-specific
+webhook URLs that belong to the same integration. This ensures events from
+multiple webhooks are written to a single dedicated Redis stream.
 
-Events are always written to `<logIngestId>/live-events/raw/event-stream`,
-regardless of the URL suffix.
+Events are always written to `<liveEventsUUID>/live-events/raw/event-stream`.
+The URL suffix is stored on each entry as `webhookPath` so Ocean can route the
+event to the correct webhook processor.
 
 ## Run
 
@@ -121,7 +160,7 @@ go test ./... -race
 ## Load test
 
 `cmd/loadtest` fires a burst of events at a running gateway, spread across N
-distinct `logIngestId` streams. Each request carries a JSON body and a couple
+distinct `liveEventsUUID` streams. Each request carries a JSON body and a couple
 of headers, exercising both the `payload` and `headers` fields written to the
 stream.
 
@@ -130,9 +169,9 @@ go run ./cmd/loadtest -url http://localhost:8080 -events 10000 -streams 10 -conc
 ```
 
 Flags: `-url`, `-events` (default 10000), `-streams` (default 10),
-`-concurrency` (default 50), `-log-ingest-prefix` (default `loadtest-ingest-`),
+`-concurrency` (default 50), `-live-events-uuid-prefix` (default `loadtest-ingest-`),
 `-timeout`. It reports throughput, status-code breakdown, and latency
-percentiles. Stream `i` uses `logIngestId = <prefix><i>`. Inspect afterward
+percentiles. Stream `i` uses `liveEventsUUID = <prefix><i>`. Inspect afterward
 with:
 
 ```sh
@@ -154,14 +193,14 @@ reclaim its work on restart via `XAUTOCLAIM`.
 
 ```sh
 # Create a consumer group
-redis-cli XGROUP CREATE "<logIngestId>/live-events/raw/event-stream" ocean-integration $ MKSTREAM
+redis-cli XGROUP CREATE "<liveEventsUUID>/live-events/raw/event-stream" ocean-integration $ MKSTREAM
 
 # Read up to 100 pending messages
 redis-cli XREADGROUP GROUP ocean-integration worker-1 COUNT 100 STREAMS \
-  "<logIngestId>/live-events/raw/event-stream" ">"
+  "<liveEventsUUID>/live-events/raw/event-stream" ">"
 
 # Acknowledge after processing
-redis-cli XACK "<logIngestId>/live-events/raw/event-stream" ocean-integration <message-id>
+redis-cli XACK "<liveEventsUUID>/live-events/raw/event-stream" ocean-integration <message-id>
 ```
 
 ## Producer contract

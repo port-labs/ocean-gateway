@@ -1,5 +1,5 @@
 // Command loadtest fires a configurable burst of live events at a running
-// gateway, spread across several distinct logIngestId streams. Each event is a
+// gateway, spread across several distinct live-events UUID streams. Each event is a
 // plain POST (no auth) carrying a JSON body and a couple of request headers, so
 // it exercises both the payload and headers captured into the Redis stream.
 //
@@ -24,12 +24,12 @@ import (
 
 func main() {
 	var (
-		baseURL      = flag.String("url", "http://localhost:8080", "gateway base URL")
-		totalEvents  = flag.Int("events", 10000, "total number of events to send")
-		streams      = flag.Int("streams", 10, "number of distinct logIngestId streams to spread events across")
-		concurrency  = flag.Int("concurrency", 50, "number of concurrent senders")
-		ingestPrefix = flag.String("log-ingest-prefix", "loadtest-ingest-", "logIngestId prefix; stream i uses <prefix><i>")
-		timeout      = flag.Duration("timeout", 10*time.Second, "per-request timeout")
+		baseURL     = flag.String("url", "http://localhost:8080", "gateway base URL")
+		totalEvents = flag.Int("events", 10000, "total number of events to send")
+		streams     = flag.Int("streams", 10, "number of distinct live-events UUID streams to spread events across")
+		concurrency = flag.Int("concurrency", 50, "number of concurrent senders")
+		uuidPrefix  = flag.String("live-events-uuid-prefix", "loadtest-ingest-", "live-events UUID prefix; stream i uses <prefix><i>")
+		timeout     = flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	)
 	flag.Parse()
 
@@ -40,7 +40,7 @@ func main() {
 
 	ingestIDs := make([]string, *streams)
 	for i := range ingestIDs {
-		ingestIDs[i] = fmt.Sprintf("%s%d", *ingestPrefix, i)
+		ingestIDs[i] = fmt.Sprintf("%s%d", *uuidPrefix, i)
 	}
 
 	client := &http.Client{
@@ -86,8 +86,8 @@ func run(client *http.Client, baseURL string, ingestIDs []string, total, concurr
 				if int(i) >= total {
 					break
 				}
-				logIngestID := ingestIDs[int(i)%len(ingestIDs)]
-				lat, code, err := send(client, baseURL, logIngestID, int(i))
+				liveEventsUUID := ingestIDs[int(i)%len(ingestIDs)]
+				lat, code, err := send(client, baseURL, liveEventsUUID, int(i))
 				local = append(local, lat)
 				localNs += int64(lat)
 				if err != nil {
@@ -111,8 +111,8 @@ func run(client *http.Client, baseURL string, ingestIDs []string, total, concurr
 	return agg
 }
 
-func send(client *http.Client, baseURL, logIngestID string, seq int) (time.Duration, int, error) {
-	url := fmt.Sprintf("%s/live-events/%s/integration/webhook", baseURL, logIngestID)
+func send(client *http.Client, baseURL, liveEventsUUID string, seq int) (time.Duration, int, error) {
+	url := fmt.Sprintf("%s/live-events/%s/integration/webhook", baseURL, liveEventsUUID)
 	body := fmt.Sprintf(`{"seq":%d,"event":"loadtest"}`, seq)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader([]byte(body)))
 	if err != nil {

@@ -93,7 +93,7 @@ This ensures:
 
 **Stream key format:**
 ```
-<logIngestId>/live-events/raw/event-stream
+<liveEventsUUID>/live-events/raw/event-stream
 ```
 The `raw` segment is namespaced to leave room for other event classes later.
 
