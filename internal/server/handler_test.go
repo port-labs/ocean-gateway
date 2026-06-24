@@ -55,6 +55,41 @@ func doRequest(t *testing.T, h *Handler, liveEventsUUID, body string, headers ma
 	return rec
 }
 
+func TestWebhookJSONArraySplitsIntoSeparateEvents(t *testing.T) {
+	w := &stubWriter{}
+	h := newHandler(w)
+
+	rec := doRequest(t, h, "log123", `[{"a":1},{"b":2}]`, nil)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d want 202", rec.Code)
+	}
+	if len(w.events) != 2 {
+		t.Fatalf("writer got %d events want 2", len(w.events))
+	}
+	if string(w.events[0].Payload) != `{"a":1}` {
+		t.Fatalf("event 0 payload = %q want {\"a\":1}", w.events[0].Payload)
+	}
+	if string(w.events[1].Payload) != `{"b":2}` {
+		t.Fatalf("event 1 payload = %q want {\"b\":2}", w.events[1].Payload)
+	}
+}
+
+func TestWebhookNonArrayPayloadStaysSingleEvent(t *testing.T) {
+	w := &stubWriter{}
+	h := newHandler(w)
+
+	rec := doRequest(t, h, "log123", `{"items":[1,2]}`, nil)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d want 202", rec.Code)
+	}
+	if len(w.events) != 1 {
+		t.Fatalf("writer got %d events want 1", len(w.events))
+	}
+	if string(w.events[0].Payload) != `{"items":[1,2]}` {
+		t.Fatalf("payload = %q", w.events[0].Payload)
+	}
+}
+
 func TestWebhookSuccessWritesPayloadAndHeaders(t *testing.T) {
 	w := &stubWriter{}
 	h := newHandler(w)

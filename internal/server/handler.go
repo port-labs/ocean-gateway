@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -64,15 +66,24 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	e := &event.Event{
-		LiveEventsUUID: liveEventsUUID,
-		WebhookPath:    chi.URLParam(r, "*"),
-		Payload:        body,
-		Headers:        headers,
+	payloads := [][]byte{body}
+	if items, ok := splitJSONArray(body); ok {
+		payloads = items
 	}
 
 	writeStart := time.Now()
-	err = h.write(r.Context(), e)
+	for _, payload := range payloads {
+		e := &event.Event{
+			LiveEventsUUID: liveEventsUUID,
+			WebhookPath:    chi.URLParam(r, "*"),
+			Payload:        payload,
+			Headers:        headers,
+		}
+		if err = h.write(r.Context(), e); err != nil {
+			break
+		}
+		metrics.EventsForwardedTotal.Inc()
+	}
 	metrics.RedisWriteSeconds.Observe(time.Since(writeStart).Seconds())
 
 	if err != nil {
@@ -81,10 +92,26 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to persist event, retry", http.StatusServiceUnavailable)
 		return
 	}
-
-	metrics.EventsForwardedTotal.Inc()
 	metrics.EventE2ESeconds.Observe(time.Since(start).Seconds())
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// splitJSONArray returns one payload per top-level JSON array element. Non-array
+// bodies (objects, primitives, invalid JSON) are not split.
+func splitJSONArray(body []byte) ([][]byte, bool) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return nil, false
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return nil, false
+	}
+	out := make([][]byte, len(items))
+	for i, item := range items {
+		out[i] = item
+	}
+	return out, true
 }
 
 // write performs the XADD with bounded exponential backoff. Retries smooth over
