@@ -48,7 +48,7 @@ func Load() (Config, error) {
 	if c.EventTTL, err = getDur("EVENT_TTL", time.Hour); err != nil {
 		return c, err
 	}
-	if c.StreamTTL, err = getDur("STREAM_TTL", time.Hour); err != nil {
+	if c.StreamTTL, err = getDur("STREAM_TTL", 0); err != nil {
 		return c, err
 	}
 	if c.WriteMaxRetries, err = getInt("WRITE_MAX_RETRIES", 2); err != nil {
