@@ -23,6 +23,7 @@ const (
 	payloadField     = "payload"
 	webhookPathField = "webhookPath"
 	headersField     = "headers"
+	QueuedAtField = "queuedAt"
 )
 
 // Writer appends events to Redis streams via XADD.
@@ -77,6 +78,7 @@ func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
 			payloadField:     e.Payload,
 			webhookPathField: e.WebhookPath,
 			headersField:     e.Headers,
+			QueuedAtField:    strconv.FormatInt(w.now().UnixNano(), 10),
 		},
 	}
 	switch {

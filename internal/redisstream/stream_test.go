@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -64,6 +65,13 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	}
 	if got := hdr["X-Event-Type"]; got != "issue_updated" {
 		t.Fatalf("X-Event-Type = %q want issue_updated", got)
+	}
+	queuedAt, err := strconv.ParseInt(entries[0].Values[QueuedAtField].(string), 10, 64)
+	if err != nil {
+		t.Fatalf("queuedAt not int64 nanos: %v", err)
+	}
+	if delta := time.Since(time.Unix(0, queuedAt)); delta < 0 || delta > time.Second {
+		t.Fatalf("queuedAt = %d, delta %v want within last second", queuedAt, delta)
 	}
 }
 

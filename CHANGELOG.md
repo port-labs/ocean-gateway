@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `queuedAt` stream entry field (Unix nanoseconds) stamped before each `XADD`
+  so consumers can measure time-until-consumed (queue wait from write to first
+  `XREADGROUP`)
 - Stateless synchronous write-through architecture: each webhook is `XADD`'d
   to Redis before returning `202`, eliminating in-memory event loss on pod crash
 - Stream key format: `<logIngestId>/live-events/raw/event-stream`
