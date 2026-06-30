@@ -23,7 +23,7 @@ const (
 	payloadField     = "payload"
 	webhookPathField = "webhookPath"
 	headersField     = "headers"
-	QueuedAtField = "queuedAt"
+	QueuedAtField    = "queuedAt"
 )
 
 // Writer appends events to Redis streams via XADD.
