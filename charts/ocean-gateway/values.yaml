@@ -51,7 +51,7 @@ stream:
   eventTTL: "1h"
   # Refresh stream key EXPIRE on every write; idle streams are deleted after
   # this TTL. 0 = no expiry. Set longer than eventTTL if consumers may lag.
-  streamTTL: "0"
+  streamTTL: "1h"
   # Approx MAXLEN per stream (size-based trim). Ignored when eventTTL > 0.
   # 0 = uncapped.
   maxLen: 0

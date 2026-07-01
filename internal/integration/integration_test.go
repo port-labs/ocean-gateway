@@ -27,7 +27,7 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
 
-	writer := redisstream.NewWriter(rdb, 0, time.Hour, 0)
+	writer := redisstream.NewWriter(rdb, 0, time.Hour, time.Hour)
 	h := server.NewHandler(writer, log, 2, time.Millisecond)
 	redisPing := func(ctx context.Context) error { return rdb.Ping(ctx).Err() }
 	ts := httptest.NewServer(server.New(h, redisPing, "test", "none", log))
@@ -74,8 +74,7 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 		t.Fatalf("X-Event-Type = %q want issue_updated", got)
 	}
 
-	// Stream key has no idle expiry by default.
-	if ttl := rdb.TTL(context.Background(), key).Val(); ttl != -1 {
-		t.Fatalf("stream TTL = %v, want -1 (no expiry)", ttl)
+	if ttl := rdb.TTL(context.Background(), key).Val(); ttl <= 0 || ttl > time.Hour {
+		t.Fatalf("stream TTL = %v, want (0, 1h]", ttl)
 	}
 }
