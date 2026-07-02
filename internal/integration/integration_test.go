@@ -74,7 +74,6 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 		t.Fatalf("X-Event-Type = %q want issue_updated", got)
 	}
 
-	// Stream key carries the idle TTL.
 	if ttl := rdb.TTL(context.Background(), key).Val(); ttl <= 0 || ttl > time.Hour {
 		t.Fatalf("stream TTL = %v, want (0, 1h]", ttl)
 	}

@@ -62,13 +62,14 @@ strips the `integration/` prefix and routes to the registered processor — see
    error it retries with bounded backoff; on persistent failure it returns
    `503` so the producer retries. On success it returns `202`.
 
-Each stream entry has three fields:
+Each stream entry has four fields:
 
 | Field | Contents |
 |-------|----------|
 | `payload` | the raw request body, byte-for-byte |
 | `webhookPath` | the path suffix after `/live-events/{liveEventsUUID}/`, stored as-is (empty when none) |
 | `headers` | the request headers, JSON object (`{"Header-Name":"value"}`; multiple values for one name are joined with `, `) |
+| `queuedAt` | Unix nanoseconds (decimal string) stamped immediately before `XADD`; consumers subtract this from the `XREADGROUP` time to measure queue wait independent of processing duration |
 
 ### webhookPath and Ocean routing
 

@@ -23,6 +23,7 @@ const (
 	payloadField     = "payload"
 	webhookPathField = "webhookPath"
 	headersField     = "headers"
+	QueuedAtField    = "queuedAt"
 )
 
 // Writer appends events to Redis streams via XADD.
@@ -71,18 +72,20 @@ func (w *Writer) Add(ctx context.Context, e *event.Event) error {
 }
 
 func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
+	now := w.now()
 	args := &redis.XAddArgs{
 		Stream: StreamKey(e.LiveEventsUUID),
 		Values: map[string]any{
 			payloadField:     e.Payload,
 			webhookPathField: e.WebhookPath,
 			headersField:     e.Headers,
+			QueuedAtField:    strconv.FormatInt(now.UnixNano(), 10),
 		},
 	}
 	switch {
 	case w.eventTTL > 0:
 		// Trim entries whose ID (a millisecond timestamp) predates the window.
-		minID := strconv.FormatInt(w.now().Add(-w.eventTTL).UnixMilli(), 10)
+		minID := strconv.FormatInt(now.Add(-w.eventTTL).UnixMilli(), 10)
 		args.MinID = minID
 		args.Approx = true
 	case w.maxLen > 0:
