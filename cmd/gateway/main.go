@@ -58,6 +58,7 @@ func main() {
 	// Redis client + connectivity check.
 	rdb := goredis.NewClient(&goredis.Options{
 		Addr:     cfg.RedisAddr,
+		Username: cfg.RedisUsername,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
 		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default (10 * GOMAXPROCS)
