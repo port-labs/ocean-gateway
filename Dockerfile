@@ -12,8 +12,11 @@ ARG VERSION=dev
 ARG COMMIT=none
 ARG DATE=unknown
 
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Build a statically linked binary — no libc required in the runtime image.
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-s -w \
       -X main.version=${VERSION} \
       -X main.commit=${COMMIT} \
