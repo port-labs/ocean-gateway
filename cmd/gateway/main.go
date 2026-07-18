@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -56,13 +57,17 @@ func main() {
 	metrics.RegisterBuildInfo(version, commit, date)
 
 	// Redis client + connectivity check.
-	rdb := goredis.NewClient(&goredis.Options{
+	redisOpts := &goredis.Options{
 		Addr:     cfg.RedisAddr,
 		Username: cfg.RedisUsername,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
 		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default (10 * GOMAXPROCS)
-	})
+	}
+	if cfg.RedisTLS {
+		redisOpts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	rdb := goredis.NewClient(redisOpts)
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		cancelPing()
