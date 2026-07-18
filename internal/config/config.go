@@ -13,6 +13,7 @@ type Config struct {
 	ListenAddr string
 
 	RedisAddr     string
+	RedisUsername string
 	RedisPassword string
 	RedisDB       int
 	RedisPoolSize int // 0 = go-redis default (10 * GOMAXPROCS)
@@ -32,6 +33,7 @@ func Load() (Config, error) {
 	c := Config{
 		ListenAddr:    getStr("LISTEN_ADDR", ":8080"),
 		RedisAddr:     getStr("REDIS_ADDR", "localhost:6379"),
+		RedisUsername: getStr("REDIS_USERNAME", ""),
 		RedisPassword: getStr("REDIS_PASSWORD", ""),
 	}
 
