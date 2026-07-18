@@ -1,3 +1,7 @@
+# Must be declared before FROM so Buildx injects the correct build platform,
+# keeping the builder stage native and enabling Go cross-compilation per target.
+ARG BUILDPLATFORM
+
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 WORKDIR /build
