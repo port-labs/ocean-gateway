@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type Config struct {
 	RedisAddr     string
 	RedisUsername string
 	RedisPassword string
+	RedisTLS      bool
 	RedisDB       int
 	RedisPoolSize int // 0 = go-redis default (10 * GOMAXPROCS)
 
@@ -35,6 +37,7 @@ func Load() (Config, error) {
 		RedisAddr:     getStr("REDIS_ADDR", "localhost:6379"),
 		RedisUsername: getStr("REDIS_USERNAME", ""),
 		RedisPassword: getStr("REDIS_PASSWORD", ""),
+		RedisTLS:      strings.EqualFold(getStr("REDIS_TLS", "false"), "true"),
 	}
 
 	var err error
