@@ -3,7 +3,7 @@ Ocean Gateway has been deployed.
   Release name : {{ .Release.Name }}
   Namespace    : {{ .Release.Namespace }}
   Image        : {{ include "ocean-gateway.image" . }}
-  Redis        : {{ .Values.redis.addr }}
+  Redis        : {{ .Values.redis.url }}
 
 The gateway is accepting live-event webhooks at:
 
