@@ -13,6 +13,8 @@ jobs:
   publish:
     name: Build & Push to GHCR
     runs-on: ubuntu-24.04-arm
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,3 +58,24 @@ jobs:
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"
           echo "\`ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "\`ghcr.io/port-labs/ocean-gateway:latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to staging
+    needs: publish
+    if: github.ref == 'refs/heads/main' && vars.STAGING_AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: port-labs/infra-apps/.github/actions/change-service-tag@main
+        with:
+          SERVICE_NAME: ocean-gateway
+          ENVIRONMENT: ocean-stg-01
+          RUNTIME: staging
+          AWS_REGION: eu-west-1
+          IMAGE_TAG: ${{ needs.publish.outputs.tag }}
+          CLUSTER_FLAVOR: apps
+          CLUSTER_NUMBER: "01"
+          github_token: ${{ secrets.PORT_MACHINE_USER_GITHUB_TOKEN }}
+          ENV_ACCOUNT_ID_OBJECT: ${{ vars.ENV_ACCOUNT_ID_OBJECT }}
