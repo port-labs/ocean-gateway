@@ -44,7 +44,7 @@ func main() {
 		"date", date,
 		"goVersion", runtime.Version(),
 		"listenAddr", cfg.ListenAddr,
-		"redisAddr", cfg.RedisAddr,
+		"redisURL", cfg.RedisURL,
 		"redisPoolSize", cfg.RedisPoolSize,
 		"streamMaxLen", cfg.StreamMaxLen,
 		"eventTTL", cfg.EventTTL.String(),
@@ -58,7 +58,7 @@ func main() {
 
 	// Redis client + connectivity check.
 	redisOpts := &goredis.Options{
-		Addr:     cfg.RedisAddr,
+		Addr:     cfg.RedisURL,
 		Username: cfg.RedisUsername,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
@@ -71,11 +71,11 @@ func main() {
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		cancelPing()
-		log.Error("redis ping failed", "addr", cfg.RedisAddr, "err", err)
+		log.Error("redis ping failed", "url", cfg.RedisURL, "err", err)
 		os.Exit(1)
 	}
 	cancelPing()
-	log.Info("redis connected", "addr", cfg.RedisAddr)
+	log.Info("redis connected", "url", cfg.RedisURL)
 
 	metrics.RegisterRedisPool(func() metrics.PoolStats {
 		s := rdb.PoolStats()

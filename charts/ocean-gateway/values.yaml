@@ -4,7 +4,7 @@
 # returning 202. It holds no in-memory buffer, so it is stateless and scales
 # horizontally with no coordination between replicas.
 #
-# Minimum required: redis.addr must be set.
+# Minimum required: redis.url must be set.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -31,14 +31,14 @@ extraVolumeMounts: []
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
 redis:
-  # Required. Address of the Redis instance, e.g. "redis:6379".
-  addr: ""
+  # Required. URL of the Redis instance, e.g. "redis:6379".
+  url: ""
   # Optional Redis username and password. Stored in a Secret when set.
   username: ""
   password: ""
   # Name of a pre-existing Secret to use instead of chart-managed values.
-  # The secret may contain any of: REDIS_ADDR, REDIS_USERNAME, REDIS_PASSWORD.
-  # When set, redis.addr/username/password are ignored and no Secret is created.
+  # The secret may contain any of: REDIS_URL, REDIS_USERNAME, REDIS_PASSWORD.
+  # When set, redis.url/username/password are ignored and no Secret is created.
   existingSecret: ""
   db: 0
   # Connection pool size. 0 = go-redis default (10 × GOMAXPROCS).

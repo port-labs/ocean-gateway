@@ -23,7 +23,7 @@ EVENTS=10000
 STREAMS=10
 CONCURRENCY=50
 PREFIX="loadtest-ingest-"
-REDIS_ADDR="localhost:6379"
+REDIS_URL="localhost:6379"
 DRAIN_WAIT=120
 FLUSH=0
 
@@ -35,7 +35,7 @@ while getopts "u:e:s:c:p:r:w:fh" opt; do
     s) STREAMS=$OPTARG ;;
     c) CONCURRENCY=$OPTARG ;;
     p) PREFIX=$OPTARG ;;
-    r) REDIS_ADDR=$OPTARG ;;
+    r) REDIS_URL=$OPTARG ;;
     w) DRAIN_WAIT=$OPTARG ;;
     f) FLUSH=1 ;;
     h) sed -n '2,20p' "$0"; exit 0 ;;
@@ -43,8 +43,8 @@ while getopts "u:e:s:c:p:r:w:fh" opt; do
   esac
 done
 
-REDIS_HOST="${REDIS_ADDR%%:*}"
-REDIS_PORT="${REDIS_ADDR##*:}"
+REDIS_HOST="${REDIS_URL%%:*}"
+REDIS_PORT="${REDIS_URL##*:}"
 RC="redis-cli -h $REDIS_HOST -p $REDIS_PORT"
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -65,14 +65,14 @@ hr
 echo "Checking prerequisites..."
 
 if ! $RC PING >/dev/null 2>&1; then
-  red "ERROR: Redis not reachable at $REDIS_ADDR"; echo; exit 1
+  red "ERROR: Redis not reachable at $REDIS_URL"; echo; exit 1
 fi
-echo "  Redis $REDIS_ADDR … $(green OK)"
+echo "  Redis $REDIS_URL … $(green OK)"
 
 GW_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$GW_URL/healthz" 2>/dev/null || echo "000")
 if [ "$GW_STATUS" != "200" ]; then
   red "ERROR: Gateway not healthy at $GW_URL (got HTTP $GW_STATUS)"; echo
-  echo "  Start it with:  REDIS_ADDR=$REDIS_ADDR go run ./cmd/gateway"
+  echo "  Start it with:  REDIS_URL=$REDIS_URL go run ./cmd/gateway"
   exit 1
 fi
 echo "  Gateway $GW_URL … $(green OK)"
