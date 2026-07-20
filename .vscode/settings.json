@@ -1,7 +1,0 @@
-{
-  "go.alternateTools": {
-    "go": "/opt/homebrew/bin/go",
-    "dlv": "/Users/hadarvaknin/go/bin/dlv"
-  },
-  "go.toolsManagement.autoUpdate": true
-}
