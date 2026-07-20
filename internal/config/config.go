@@ -34,7 +34,7 @@ type Config struct {
 func Load() (Config, error) {
 	c := Config{
 		ListenAddr:    getStr("LISTEN_ADDR", ":8080"),
-		RedisURL:      getStr("REDIS_OCEAN_GATEWAY_URL", "localhost:6379"),
+		RedisURL:      trimRedisAddr(getStr("REDIS_OCEAN_GATEWAY_URL", "localhost:6379")),
 		RedisUsername: getStr("REDIS_OCEAN_GATEWAY_USERNAME", ""),
 		RedisPassword: getStr("REDIS_OCEAN_GATEWAY_PASSWORD", ""),
 		RedisTLS:      strings.EqualFold(getStr("REDIS_OCEAN_GATEWAY_ENABLE_TLS", "false"), "true"),
@@ -70,6 +70,19 @@ func getStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// trimRedisAddr strips a redis:// or rediss:// scheme so the value can be used
+// as go-redis Options.Addr (host:port). Auth and path components are not parsed.
+func trimRedisAddr(addr string) string {
+	lower := strings.ToLower(addr)
+	// Check rediss:// before redis:// — the latter is a prefix of the former.
+	for _, prefix := range []string{"rediss://", "redis://"} {
+		if strings.HasPrefix(lower, prefix) {
+			return addr[len(prefix):]
+		}
+	}
+	return addr
 }
 
 func getInt(key string, def int) (int, error) {
