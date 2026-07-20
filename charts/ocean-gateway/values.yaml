@@ -37,7 +37,7 @@ redis:
   username: ""
   password: ""
   # Name of a pre-existing Secret to use instead of chart-managed values.
-  # The secret may contain any of: REDIS_URL, REDIS_USERNAME, REDIS_PASSWORD.
+  # The secret may contain any of: REDIS_OCEAN_GATEWAY_URL, REDIS_OCEAN_GATEWAY_USERNAME, REDIS_OCEAN_GATEWAY_PASSWORD.
   # When set, redis.url/username/password are ignored and no Secret is created.
   existingSecret: ""
   db: 0

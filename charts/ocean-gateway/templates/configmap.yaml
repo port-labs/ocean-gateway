@@ -7,7 +7,7 @@ metadata:
 data:
   LISTEN_ADDR: ":{{ .Values.service.port }}"
   {{- if not .Values.redis.existingSecret }}
-  REDIS_URL: {{ required "redis.url is required when redis.existingSecret is not set" .Values.redis.url | quote }}
+  REDIS_OCEAN_GATEWAY_URL: {{ required "redis.url is required when redis.existingSecret is not set" .Values.redis.url | quote }}
   {{- end }}
   REDIS_DB: {{ .Values.redis.db | toString | quote }}
   REDIS_POOL_SIZE: {{ .Values.redis.poolSize | toString | quote }}

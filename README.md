@@ -134,7 +134,7 @@ event to the correct webhook processor.
 ## Run
 
 ```sh
-REDIS_URL=localhost:6379 go run ./cmd/gateway
+REDIS_OCEAN_GATEWAY_URL=localhost:6379 go run ./cmd/gateway
 ```
 
 ### Configuration (env)
@@ -142,8 +142,8 @@ REDIS_URL=localhost:6379 go run ./cmd/gateway
 | Var | Default | Description |
 |-----|---------|-------------|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `REDIS_URL` | `localhost:6379` | Redis address |
-| `REDIS_PASSWORD` | _(empty)_ | Redis password |
+| `REDIS_OCEAN_GATEWAY_URL` | `localhost:6379` | Redis address |
+| `REDIS_OCEAN_GATEWAY_PASSWORD` | _(empty)_ | Redis password |
 | `REDIS_DB` | `0` | Redis database |
 | `REDIS_POOL_SIZE` | `0` | Redis connection pool size; bounds concurrent writes (`0` = go-redis default, 10×GOMAXPROCS) |
 | `REDIS_STREAM_MAXLEN` | `0` | Approx `MAXLEN` per stream, size-based (ignored when `EVENT_TTL` > 0; `0` = uncapped) |

@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Gateway",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/gateway",
+      "env": {
+        "LISTEN_ADDR": ":8080",
+        "REDIS_OCEAN_GATEWAY_URL": "localhost:6379"
+      }
+    },
+    {
+      "name": "Loadtest",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/loadtest",
+      "args": [
+        "-url",
+        "http://localhost:8080",
+        "-events",
+        "100",
+        "-streams",
+        "3",
+        "-concurrency",
+        "10"
+      ]
+    },
+    {
+      "name": "Debug test (package)",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "buildFlags": "-race"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Gateway + Loadtest",
+      "configurations": ["Gateway", "Loadtest"],
+      "stopAll": true
+    }
+  ]
+}
