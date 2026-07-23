@@ -74,6 +74,10 @@ golangci-lint run
 4. Open a pull request — CI will run build, lint, tests, and a load test
    automatically.
 
+Helm chart changes belong in
+[port-labs/helm-charts](https://github.com/port-labs/helm-charts/tree/main/charts/ocean-gateway),
+not in this repository.
+
 ## Architecture notes
 
 **The gateway is intentionally stateless.** Each incoming webhook is written

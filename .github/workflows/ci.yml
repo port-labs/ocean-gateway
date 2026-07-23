@@ -55,38 +55,6 @@ jobs:
         with:
           version: latest
 
-  # ── helm chart ───────────────────────────────────────────────────────────────
-  chart:
-    name: Helm Chart
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: azure/setup-helm@v4
-
-      - name: Lint
-        run: helm lint ./charts/ocean-gateway --set redis.url=redis:6379
-
-      - name: Template — inline url + username + password
-        run: |
-          helm template t ./charts/ocean-gateway \
-            --set redis.url=redis:6379 \
-            --set redis.username=user \
-            --set redis.password=pass > /dev/null
-
-      - name: Template — existing secret (url/creds come from secret)
-        run: |
-          helm template t ./charts/ocean-gateway \
-            --set redis.existingSecret=ext-redis > /dev/null
-
-      - name: Template — url required when no existingSecret
-        run: |
-          if helm template t ./charts/ocean-gateway > /dev/null 2>&1; then
-            echo "FAIL: expected error when redis.url and redis.existingSecret are both unset" >&2
-            exit 1
-          fi
-          echo "PASS: chart correctly requires redis.url without an existing secret"
-
   # ── load test ────────────────────────────────────────────────────────────────
   load-test:
     name: Load Test (1M events)
