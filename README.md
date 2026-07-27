@@ -131,7 +131,38 @@ Events are always written to `<liveEventsUUID>/live-events/raw/event-stream`.
 The URL suffix is stored on each entry as `webhookPath` so Ocean can route the
 event to the correct webhook processor.
 
-## Run
+## Deploy on Kubernetes
+
+The Helm chart lives in [port-labs/helm-charts](https://github.com/port-labs/helm-charts/tree/main/charts/ocean-gateway).
+
+```sh
+helm repo add port-labs https://port-labs.github.io/helm-charts
+helm repo update
+```
+
+With bundled Redis (no existing Redis required):
+
+```sh
+helm upgrade --install ocean-gateway port-labs/ocean-gateway \
+  --namespace ocean-gateway --create-namespace \
+  --set redis.enabled=true \
+  --set redis.auth.password=<password>
+```
+
+With an existing Redis instance:
+
+```sh
+helm upgrade --install ocean-gateway port-labs/ocean-gateway \
+  --namespace ocean-gateway --create-namespace \
+  --set redis.url=redis.example.svc.cluster.local:6379 \
+  --set redis.password=<password>
+```
+
+Ocean integrations must use the **same Redis** instance. See the
+[port-ocean chart](https://github.com/port-labs/helm-charts/tree/main/charts/port-ocean)
+for live-events consumer configuration.
+
+## Run locally
 
 ```sh
 REDIS_OCEAN_GATEWAY_URL=localhost:6379 go run ./cmd/gateway
