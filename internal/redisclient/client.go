@@ -1,7 +1,6 @@
 // Package redisclient builds a go-redis client for standalone or cluster Redis.
 //
 // Connection mode is auto-detected by probing cluster_enabled via INFO cluster,
-// matching port_ocean.consumers.redis_client.create_redis_client in Ocean.
 package redisclient
 
 import (
