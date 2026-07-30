@@ -165,7 +165,7 @@ for live-events consumer configuration.
 ## Run locally
 
 ```sh
-REDIS_OCEAN_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
+REDIS_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 ```
 
 ### Configuration (env)
@@ -173,8 +173,10 @@ REDIS_OCEAN_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 | Var | Default | Description |
 |-----|---------|-------------|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `REDIS_OCEAN_LIVE_EVENTS_URL` | `localhost:6379` | Redis address |
-| `REDIS_OCEAN_LIVE_EVENTS_PASSWORD` | _(empty)_ | Redis password |
+| `REDIS_LIVE_EVENTS_URL` | `localhost:6379` | Redis address |
+| `REDIS_LIVE_EVENTS_USERNAME` | _(empty)_ | Redis username (ACL) |
+| `REDIS_LIVE_EVENTS_PASSWORD` | _(empty)_ | Redis password |
+| `REDIS_LIVE_EVENTS_ENABLE_TLS` | `false` | Enable TLS for Redis |
 | `REDIS_DB` | `0` | Redis database |
 | `REDIS_POOL_SIZE` | `0` | Redis connection pool size; bounds concurrent writes (`0` = go-redis default, 10×GOMAXPROCS) |
 | `REDIS_STREAM_MAXLEN` | `0` | Approx `MAXLEN` per stream, size-based (ignored when `EVENT_TTL` > 0; `0` = uncapped) |

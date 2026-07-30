@@ -9,7 +9,7 @@
       "program": "${workspaceFolder}/cmd/gateway",
       "env": {
         "LISTEN_ADDR": ":8080",
-        "REDIS_OCEAN_LIVE_EVENTS_URL": "localhost:6379"
+        "REDIS_LIVE_EVENTS_URL": "localhost:6379"
       }
     },
     {

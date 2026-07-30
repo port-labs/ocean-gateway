@@ -72,7 +72,7 @@ echo "  Redis $REDIS_URL … $(green OK)"
 GW_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$GW_URL/healthz" 2>/dev/null || echo "000")
 if [ "$GW_STATUS" != "200" ]; then
   red "ERROR: Gateway not healthy at $GW_URL (got HTTP $GW_STATUS)"; echo
-  echo "  Start it with:  REDIS_OCEAN_LIVE_EVENTS_URL=$REDIS_URL go run ./cmd/gateway"
+  echo "  Start it with:  REDIS_LIVE_EVENTS_URL=$REDIS_URL go run ./cmd/gateway"
   exit 1
 fi
 echo "  Gateway $GW_URL … $(green OK)"
