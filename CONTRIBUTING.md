@@ -22,7 +22,7 @@ docker run -d --name redis -p 6379:6379 redis:7-alpine
 cp .env.example .env
 
 # Run the gateway
-REDIS_OCEAN_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
+REDIS_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 ```
 
 Or spin up both services with Docker Compose:

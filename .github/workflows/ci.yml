@@ -82,7 +82,7 @@ jobs:
 
       - name: Start gateway
         run: |
-          REDIS_OCEAN_LIVE_EVENTS_URL=localhost:6379 /tmp/gateway &
+          REDIS_LIVE_EVENTS_URL=localhost:6379 /tmp/gateway &
           echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
 
       - name: Wait for gateway to be healthy

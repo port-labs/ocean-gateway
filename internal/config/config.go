@@ -34,10 +34,10 @@ type Config struct {
 func Load() (Config, error) {
 	c := Config{
 		ListenAddr:    getStr("LISTEN_ADDR", ":8080"),
-		RedisURL:      trimRedisAddr(getStr("REDIS_OCEAN_LIVE_EVENTS_URL", "localhost:6379")),
-		RedisUsername: getStr("REDIS_OCEAN_LIVE_EVENTS_USERNAME", ""),
-		RedisPassword: getStr("REDIS_OCEAN_LIVE_EVENTS_PASSWORD", ""),
-		RedisTLS:      strings.EqualFold(getStr("REDIS_OCEAN_LIVE_EVENTS_ENABLE_TLS", "false"), "true"),
+		RedisURL:      trimRedisAddr(getStr("REDIS_LIVE_EVENTS_URL", "localhost:6379")),
+		RedisUsername: getStr("REDIS_LIVE_EVENTS_USERNAME", ""),
+		RedisPassword: getStr("REDIS_LIVE_EVENTS_PASSWORD", ""),
+		RedisTLS:      strings.EqualFold(getStr("REDIS_LIVE_EVENTS_ENABLE_TLS", "false"), "true"),
 	}
 
 	var err error
