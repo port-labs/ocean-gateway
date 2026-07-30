@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -15,10 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	goredis "github.com/redis/go-redis/v9"
-
 	"github.com/port-labs/ocean-gateway/internal/config"
 	"github.com/port-labs/ocean-gateway/internal/metrics"
+	"github.com/port-labs/ocean-gateway/internal/redisclient"
 	"github.com/port-labs/ocean-gateway/internal/redisstream"
 	"github.com/port-labs/ocean-gateway/internal/server"
 )
@@ -56,26 +54,16 @@ func main() {
 	// Register build info and start collecting Redis pool stats.
 	metrics.RegisterBuildInfo(version, commit, date)
 
-	// Redis client + connectivity check.
-	redisOpts := &goredis.Options{
-		Addr:     cfg.RedisURL,
-		Username: cfg.RedisUsername,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
-		PoolSize: cfg.RedisPoolSize, // 0 => go-redis default (10 * GOMAXPROCS)
-	}
-	if cfg.RedisTLS {
-		redisOpts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
-	rdb := goredis.NewClient(redisOpts)
+	// Redis client + connectivity check (auto-detects cluster vs standalone).
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := rdb.Ping(pingCtx).Err(); err != nil {
+	rdb, err := redisclient.New(pingCtx, cfg)
+	if err != nil {
 		cancelPing()
-		log.Error("redis ping failed", "url", cfg.RedisURL, "err", err)
+		log.Error("redis connect failed", "url", cfg.RedisURL, "err", err)
 		os.Exit(1)
 	}
 	cancelPing()
-	log.Info("redis connected", "url", cfg.RedisURL)
+	log.Info("redis connected", "url", cfg.RedisURL, "mode", rdb.Mode)
 
 	metrics.RegisterRedisPool(func() metrics.PoolStats {
 		s := rdb.PoolStats()
