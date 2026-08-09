@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "8080:8080"
+      - "9100:9100"
     environment:
       REDIS_LIVE_EVENTS_URL: redis:6379
       EVENT_TTL: 1h

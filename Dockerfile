@@ -26,6 +26,6 @@ FROM gcr.io/distroless/static:nonroot
 
 COPY --from=builder /gateway /gateway
 
-EXPOSE 8080
+EXPOSE 8080 9100
 
 ENTRYPOINT ["/gateway"]
