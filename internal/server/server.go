@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // PingFunc is a function that pings a dependency and returns any error.
@@ -31,13 +30,6 @@ func New(h *Handler, redisPing PingFunc, version, commit string, log *slog.Logge
 	r.Post("/live-events/{liveEventsUUID}", h.Webhook)
 	r.Post("/live-events/{liveEventsUUID}/*", h.Webhook)
 
-	return r
-}
-
-// NewMetrics builds a minimal HTTP handler that serves only Prometheus metrics.
-func NewMetrics() http.Handler {
-	r := chi.NewRouter()
-	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 	return r
 }
 

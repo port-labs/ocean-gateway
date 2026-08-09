@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/port-labs/ocean-gateway/internal/config"
 	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/redisclient"
@@ -87,24 +89,12 @@ func main() {
 	}
 	metricsSrv := &http.Server{
 		Addr:              cfg.MetricsListenAddr,
-		Handler:           server.NewMetrics(),
+		Handler:           promhttp.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	go func() {
-		log.Info("gateway listening", "addr", cfg.ListenAddr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("http server failed", "err", err)
-			os.Exit(1)
-		}
-	}()
-	go func() {
-		log.Info("metrics listening", "addr", cfg.MetricsListenAddr)
-		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("metrics server failed", "err", err)
-			os.Exit(1)
-		}
-	}()
+	serve(log, "gateway", cfg.ListenAddr, srv)
+	serve(log, "metrics", cfg.MetricsListenAddr, metricsSrv)
 
 	// Wait for a shutdown signal, then stop accepting requests and let in-flight
 	// writes finish before closing Redis.
@@ -113,15 +103,28 @@ func main() {
 	sig := <-sigCh
 	log.Info("shutdown initiated", "signal", sig.String())
 
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancelShutdown()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("http shutdown error", "err", err)
+	gatewayCtx, cancelGateway := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelGateway()
+	if err := srv.Shutdown(gatewayCtx); err != nil {
+		log.Error("gateway shutdown error", "err", err)
 	}
-	if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+
+	metricsCtx, cancelMetrics := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelMetrics()
+	if err := metricsSrv.Shutdown(metricsCtx); err != nil {
 		log.Error("metrics shutdown error", "err", err)
 	}
 
 	_ = rdb.Close()
 	log.Info("shutdown complete")
+}
+
+func serve(log *slog.Logger, name, addr string, srv *http.Server) {
+	go func() {
+		log.Info(name+" listening", "addr", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error(name+" server failed", "err", err)
+			os.Exit(1)
+		}
+	}()
 }

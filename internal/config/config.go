@@ -37,9 +37,9 @@ func Load() (Config, error) {
 		ListenAddr:        getStr("LISTEN_ADDR", ":8080"),
 		MetricsListenAddr: getStr("METRICS_LISTEN_ADDR", ":9100"),
 		RedisURL:          trimRedisAddr(getStr("REDIS_LIVE_EVENTS_URL", "localhost:6379")),
-		RedisUsername: getStr("REDIS_LIVE_EVENTS_USERNAME", ""),
-		RedisPassword: getStr("REDIS_LIVE_EVENTS_PASSWORD", ""),
-		RedisTLS:      strings.EqualFold(getStr("REDIS_LIVE_EVENTS_ENABLE_TLS", "false"), "true"),
+		RedisUsername:     getStr("REDIS_LIVE_EVENTS_USERNAME", ""),
+		RedisPassword:     getStr("REDIS_LIVE_EVENTS_PASSWORD", ""),
+		RedisTLS:          strings.EqualFold(getStr("REDIS_LIVE_EVENTS_ENABLE_TLS", "false"), "true"),
 	}
 
 	var err error
