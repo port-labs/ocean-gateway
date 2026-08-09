@@ -71,11 +71,12 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		payloads = items
 	}
 
+	webhookPath := chi.URLParam(r, "*")
 	writeStart := time.Now()
 	for _, payload := range payloads {
 		e := &event.Event{
 			LiveEventsUUID: liveEventsUUID,
-			WebhookPath:    chi.URLParam(r, "*"),
+			WebhookPath:    webhookPath,
 			Payload:        payload,
 			Headers:        headers,
 		}
@@ -88,7 +89,6 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		metrics.EventsFailedTotal.Inc()
-		h.log.Error("failed to write event to redis", "liveEventsUUID", liveEventsUUID, "err", err)
 		http.Error(w, "failed to persist event, retry", http.StatusServiceUnavailable)
 		return
 	}
@@ -114,32 +114,50 @@ func splitJSONArray(body []byte) ([][]byte, bool) {
 	return out, true
 }
 
+// eventLogAttrs returns structured fields for logging a live event.
+func eventLogAttrs(e *event.Event) []any {
+	return []any{
+		"liveEventsUUID", e.LiveEventsUUID,
+		"webhookPath", e.WebhookPath,
+		"payload", string(e.Payload),
+	}
+}
+
 // write performs the XADD with bounded exponential backoff. Retries smooth over
 // transient blips; a persistent failure surfaces to the caller as a 503.
 func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	delay := h.backoff
 	var err error
+	attempts := h.maxRetries + 1
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
-			h.log.Debug("event written to stream", "liveEventsUUID", e.LiveEventsUUID)
+			h.log.Info("event added to stream", eventLogAttrs(e)...)
 			return nil
 		}
 		if attempt == h.maxRetries {
 			break
 		}
-		h.log.Warn("redis write failed, retrying",
-			"liveEventsUUID", e.LiveEventsUUID,
+		h.log.Warn("redis write failed, retrying", append(eventLogAttrs(e),
 			"attempt", attempt+1,
 			"maxRetries", h.maxRetries,
 			"backoff", delay.String(),
 			"err", err,
-		)
+		)...)
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			err = ctx.Err()
+			h.log.Error("failed to add event to stream", append(eventLogAttrs(e),
+				"attempts", attempt+1,
+				"err", err,
+			)...)
+			return err
 		case <-time.After(delay):
 			delay *= 2
 		}
 	}
+	h.log.Error("failed to add event to stream", append(eventLogAttrs(e),
+		"attempts", attempts,
+		"err", err,
+	)...)
 	return err
 }
