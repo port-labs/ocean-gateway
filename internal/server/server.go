@@ -27,11 +27,17 @@ func New(h *Handler, redisPing PingFunc, version, commit string, log *slog.Logge
 	r.Use(requestLogger(log))
 
 	r.Get("/healthz", healthHandler(redisPing, version, commit))
-	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Post("/live-events/{liveEventsUUID}", h.Webhook)
 	r.Post("/live-events/{liveEventsUUID}/*", h.Webhook)
 
+	return r
+}
+
+// NewMetrics builds a minimal HTTP handler that serves only Prometheus metrics.
+func NewMetrics() http.Handler {
+	r := chi.NewRouter()
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 	return r
 }
 

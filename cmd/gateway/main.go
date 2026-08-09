@@ -42,6 +42,7 @@ func main() {
 		"date", date,
 		"goVersion", runtime.Version(),
 		"listenAddr", cfg.ListenAddr,
+		"metricsListenAddr", cfg.MetricsListenAddr,
 		"redisURL", cfg.RedisURL,
 		"redisPoolSize", cfg.RedisPoolSize,
 		"streamMaxLen", cfg.StreamMaxLen,
@@ -84,11 +85,23 @@ func main() {
 		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, version, commit, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	metricsSrv := &http.Server{
+		Addr:              cfg.MetricsListenAddr,
+		Handler:           server.NewMetrics(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	go func() {
 		log.Info("gateway listening", "addr", cfg.ListenAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("http server failed", "err", err)
+			os.Exit(1)
+		}
+	}()
+	go func() {
+		log.Info("metrics listening", "addr", cfg.MetricsListenAddr)
+		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("metrics server failed", "err", err)
 			os.Exit(1)
 		}
 	}()
@@ -104,6 +117,9 @@ func main() {
 	defer cancelShutdown()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("http shutdown error", "err", err)
+	}
+	if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("metrics shutdown error", "err", err)
 	}
 
 	_ = rdb.Close()

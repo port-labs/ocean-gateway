@@ -11,7 +11,8 @@ import (
 
 // Config holds all runtime configuration for the gateway.
 type Config struct {
-	ListenAddr string
+	ListenAddr        string
+	MetricsListenAddr string
 
 	RedisURL      string
 	RedisUsername string
@@ -33,8 +34,9 @@ type Config struct {
 // unset value. It returns an error only when a set value fails to parse.
 func Load() (Config, error) {
 	c := Config{
-		ListenAddr:    getStr("LISTEN_ADDR", ":8080"),
-		RedisURL:      trimRedisAddr(getStr("REDIS_LIVE_EVENTS_URL", "localhost:6379")),
+		ListenAddr:        getStr("LISTEN_ADDR", ":8080"),
+		MetricsListenAddr: getStr("METRICS_LISTEN_ADDR", ":9100"),
+		RedisURL:          trimRedisAddr(getStr("REDIS_LIVE_EVENTS_URL", "localhost:6379")),
 		RedisUsername: getStr("REDIS_LIVE_EVENTS_USERNAME", ""),
 		RedisPassword: getStr("REDIS_LIVE_EVENTS_PASSWORD", ""),
 		RedisTLS:      strings.EqualFold(getStr("REDIS_LIVE_EVENTS_ENABLE_TLS", "false"), "true"),
