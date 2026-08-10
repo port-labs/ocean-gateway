@@ -71,11 +71,13 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		payloads = items
 	}
 
+	webhookPath := chi.URLParam(r, "*")
 	writeStart := time.Now()
 	for _, payload := range payloads {
 		e := &event.Event{
+			EventID:        event.NewID(),
 			LiveEventsUUID: liveEventsUUID,
-			WebhookPath:    chi.URLParam(r, "*"),
+			WebhookPath:    webhookPath,
 			Payload:        payload,
 			Headers:        headers,
 		}
@@ -88,7 +90,6 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		metrics.EventsFailedTotal.Inc()
-		h.log.Error("failed to write event to redis", "liveEventsUUID", liveEventsUUID, "err", err)
 		http.Error(w, "failed to persist event, retry", http.StatusServiceUnavailable)
 		return
 	}
@@ -114,32 +115,48 @@ func splitJSONArray(body []byte) ([][]byte, bool) {
 	return out, true
 }
 
+// eventIDAttrs returns identifying fields without the payload — safe for
+func eventIDAttrs(e *event.Event) []any {
+	return []any{
+		"eventId", e.EventID,
+		"liveEventsUUID", e.LiveEventsUUID,
+		"webhookPath", e.WebhookPath,
+	}
+}
+
+// eventLogAttrs returns structured fields for the terminal log of a live event,
+// including the full payload.
+func eventLogAttrs(e *event.Event) []any {
+	return append(eventIDAttrs(e), "payload", string(e.Payload))
+}
+
 // write performs the XADD with bounded exponential backoff. Retries smooth over
 // transient blips; a persistent failure surfaces to the caller as a 503.
+// The full payload is logged exactly once: on success Info, or on the final Error.
 func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	delay := h.backoff
 	var err error
+	attempts := h.maxRetries + 1
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
-			h.log.Debug("event written to stream", "liveEventsUUID", e.LiveEventsUUID)
+			h.log.Info("event added to stream", eventLogAttrs(e)...)
 			return nil
 		}
 		if attempt == h.maxRetries {
 			break
 		}
-		h.log.Warn("redis write failed, retrying",
-			"liveEventsUUID", e.LiveEventsUUID,
+		h.log.Warn("redis write failed, retrying", append(eventIDAttrs(e),
 			"attempt", attempt+1,
 			"maxRetries", h.maxRetries,
 			"backoff", delay.String(),
 			"err", err,
-		)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
-			delay *= 2
-		}
+		)...)
+		time.Sleep(delay)
+		delay *= 2
 	}
+	h.log.Error("failed to add event to stream", append(eventLogAttrs(e),
+		"attempts", attempts,
+		"err", err,
+	)...)
 	return err
 }

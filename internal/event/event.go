@@ -6,6 +6,7 @@ package event
 // the gateway holds no buffer of its own. The gateway does not interpret the
 // payload or validate ownership; the consuming integration does that.
 type Event struct {
+	EventID        string // gateway-assigned UUID, unique across all streams
 	LiveEventsUUID string
 	WebhookPath    string // path suffix after /live-events/{liveEventsUUID}/, empty when none
 	Payload        []byte
