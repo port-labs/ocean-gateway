@@ -151,17 +151,8 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 			"backoff", delay.String(),
 			"err", err,
 		)...)
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-			h.log.Error("failed to add event to stream", append(eventLogAttrs(e),
-				"attempts", attempt+1,
-				"err", err,
-			)...)
-			return err
-		case <-time.After(delay):
-			delay *= 2
-		}
+		time.Sleep(delay)
+		delay *= 2
 	}
 	h.log.Error("failed to add event to stream", append(eventLogAttrs(e),
 		"attempts", attempts,
