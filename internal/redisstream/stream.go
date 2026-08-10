@@ -20,6 +20,7 @@ import (
 
 // Stream entry field names.
 const (
+	EventIDField     = "eventId"
 	payloadField     = "payload"
 	webhookPathField = "webhookPath"
 	headersField     = "headers"
@@ -67,7 +68,9 @@ func (w *Writer) Add(ctx context.Context, e *event.Event) error {
 	pipe := w.rdb.Pipeline()
 	add := pipe.XAdd(ctx, w.argsFor(e))
 	pipe.Expire(ctx, StreamKey(e.LiveEventsUUID), w.streamTTL)
-	_, _ = pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return err
+	}
 	return add.Err()
 }
 
@@ -76,6 +79,7 @@ func (w *Writer) argsFor(e *event.Event) *redis.XAddArgs {
 	args := &redis.XAddArgs{
 		Stream: StreamKey(e.LiveEventsUUID),
 		Values: map[string]any{
+			EventIDField:     e.EventID,
 			payloadField:     e.Payload,
 			webhookPathField: e.WebhookPath,
 			headersField:     e.Headers,

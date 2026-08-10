@@ -37,6 +37,7 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	}
 
 	e := &event.Event{
+		EventID:        event.NewID(),
 		LiveEventsUUID: "log_1",
 		WebhookPath:    "integration/webhook",
 		Payload:        []byte(`{"hello":"world"}`),
@@ -52,6 +53,9 @@ func TestAddWritesPayloadAndHeaders(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Fatalf("got %d entries want 1", len(entries))
+	}
+	if got := entries[0].Values[EventIDField]; got != e.EventID {
+		t.Fatalf("eventId = %v want %q", got, e.EventID)
 	}
 	if got := entries[0].Values[payloadField]; got != `{"hello":"world"}` {
 		t.Fatalf("payload = %v", got)
@@ -82,7 +86,7 @@ func TestStreamIdleTTLExpiresKey(t *testing.T) {
 	ctx := context.Background()
 
 	w := NewWriter(rdb, 0, 0, time.Hour)
-	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_ttl", Payload: []byte("x")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_ttl", EventID: event.NewID(), Payload: []byte("x")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -105,11 +109,11 @@ func TestStreamIdleTTLRefreshedOnWrite(t *testing.T) {
 
 	w := NewWriter(rdb, 0, 0, time.Hour)
 	key := StreamKey("log_active")
-	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", Payload: []byte("1")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", EventID: event.NewID(), Payload: []byte("1")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	mr.FastForward(50 * time.Minute)
-	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", Payload: []byte("2")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_active", EventID: event.NewID(), Payload: []byte("2")}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	mr.FastForward(20 * time.Minute)
@@ -133,7 +137,7 @@ func TestEventTTLTrimsOldEntries(t *testing.T) {
 	}
 
 	w := NewWriter(rdb, 0, time.Hour, 0)
-	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_age", Payload: []byte("new")}); err != nil {
+	if err := w.Add(ctx, &event.Event{LiveEventsUUID: "log_age", EventID: event.NewID(), Payload: []byte("new")}); err != nil {
 		t.Fatalf("add new: %v", err)
 	}
 

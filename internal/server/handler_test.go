@@ -108,6 +108,9 @@ func TestWebhookSuccessWritesPayloadAndHeaders(t *testing.T) {
 	if e.WebhookPath != "integration/webhook" {
 		t.Fatalf("webhookPath = %q want integration/webhook", e.WebhookPath)
 	}
+	if e.EventID == "" {
+		t.Fatal("eventId is empty")
+	}
 	var hdr map[string]string
 	if err := json.Unmarshal(e.Headers, &hdr); err != nil {
 		t.Fatalf("headers not json: %v", err)
@@ -168,12 +171,43 @@ func (h *captureHandler) payloadCount(payload string) int {
 	return n
 }
 
+func (h *captureHandler) attrValue(key string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, r := range h.records {
+		var found string
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key == key {
+				found = a.Value.String()
+			}
+			return true
+		})
+		if found != "" {
+			return found
+		}
+	}
+	return ""
+}
+
+func TestWriteLogsEventIDOnSuccess(t *testing.T) {
+	logs := &captureHandler{}
+	w := &stubWriter{}
+	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
+	e := &event.Event{EventID: event.NewID(), LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(`{}`)}
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := logs.attrValue("eventId"); got != e.EventID {
+		t.Fatalf("eventId = %q want %q", got, e.EventID)
+	}
+}
+
 func TestWriteLogsPayloadOnceOnRetrySuccess(t *testing.T) {
 	logs := &captureHandler{}
 	w := &stubWriter{failTimes: 2}
 	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
 	payload := `{"once":true}`
-	e := &event.Event{LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
+	e := &event.Event{EventID: event.NewID(), LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
 	if err := h.write(context.Background(), e); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -187,7 +221,7 @@ func TestWriteLogsPayloadOnceOnFinalFailure(t *testing.T) {
 	w := &stubWriter{failTimes: 99}
 	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
 	payload := `{"once":true}`
-	e := &event.Event{LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
+	e := &event.Event{EventID: event.NewID(), LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
 	if err := h.write(context.Background(), e); err == nil {
 		t.Fatal("write: want error")
 	}

@@ -75,6 +75,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	writeStart := time.Now()
 	for _, payload := range payloads {
 		e := &event.Event{
+			EventID:        event.NewID(),
 			LiveEventsUUID: liveEventsUUID,
 			WebhookPath:    webhookPath,
 			Payload:        payload,
@@ -117,6 +118,7 @@ func splitJSONArray(body []byte) ([][]byte, bool) {
 // eventIDAttrs returns identifying fields without the payload — safe for
 func eventIDAttrs(e *event.Event) []any {
 	return []any{
+		"eventId", e.EventID,
 		"liveEventsUUID", e.LiveEventsUUID,
 		"webhookPath", e.WebhookPath,
 	}
