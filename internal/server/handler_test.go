@@ -154,8 +154,8 @@ func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.records = append(h.records, r.Clone())
 	return nil
 }
-func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler  { return h }
-func (h *captureHandler) WithGroup(string) slog.Handler       { return h }
+func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
 func (h *captureHandler) payloadCount(payload string) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
