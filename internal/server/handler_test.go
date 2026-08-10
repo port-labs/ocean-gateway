@@ -138,6 +138,64 @@ func TestWebhookRedisFailureReturns503(t *testing.T) {
 	}
 }
 
+// captureHandler records slog records for assertions.
+type captureHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler  { return h }
+func (h *captureHandler) WithGroup(string) slog.Handler       { return h }
+func (h *captureHandler) payloadCount(payload string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, r := range h.records {
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key == "payload" && a.Value.String() == payload {
+				n++
+			}
+			return true
+		})
+	}
+	return n
+}
+
+func TestWriteLogsPayloadOnceOnRetrySuccess(t *testing.T) {
+	logs := &captureHandler{}
+	w := &stubWriter{failTimes: 2}
+	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
+	payload := `{"once":true}`
+	e := &event.Event{LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := logs.payloadCount(payload); got != 1 {
+		t.Fatalf("payload logged %d times want 1", got)
+	}
+}
+
+func TestWriteLogsPayloadOnceOnFinalFailure(t *testing.T) {
+	logs := &captureHandler{}
+	w := &stubWriter{failTimes: 99}
+	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
+	payload := `{"once":true}`
+	e := &event.Event{LiveEventsUUID: "log123", WebhookPath: "hook", Payload: []byte(payload)}
+	if err := h.write(context.Background(), e); err == nil {
+		t.Fatal("write: want error")
+	}
+	if got := logs.payloadCount(payload); got != 1 {
+		t.Fatalf("payload logged %d times want 1", got)
+	}
+}
+
 func TestWebhookUnknownPathReturns404(t *testing.T) {
 	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet())
 	req := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader("{}"))

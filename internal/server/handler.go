@@ -114,17 +114,23 @@ func splitJSONArray(body []byte) ([][]byte, bool) {
 	return out, true
 }
 
-// eventLogAttrs returns structured fields for logging a live event.
-func eventLogAttrs(e *event.Event) []any {
+// eventIDAttrs returns identifying fields without the payload — safe for
+func eventIDAttrs(e *event.Event) []any {
 	return []any{
 		"liveEventsUUID", e.LiveEventsUUID,
 		"webhookPath", e.WebhookPath,
-		"payload", string(e.Payload),
 	}
+}
+
+// eventLogAttrs returns structured fields for the terminal log of a live event,
+// including the full payload.
+func eventLogAttrs(e *event.Event) []any {
+	return append(eventIDAttrs(e), "payload", string(e.Payload))
 }
 
 // write performs the XADD with bounded exponential backoff. Retries smooth over
 // transient blips; a persistent failure surfaces to the caller as a 503.
+// The full payload is logged exactly once: on success Info, or on the final Error.
 func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	delay := h.backoff
 	var err error
@@ -137,7 +143,7 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 		if attempt == h.maxRetries {
 			break
 		}
-		h.log.Warn("redis write failed, retrying", append(eventLogAttrs(e),
+		h.log.Warn("redis write failed, retrying", append(eventIDAttrs(e),
 			"attempt", attempt+1,
 			"maxRetries", h.maxRetries,
 			"backoff", delay.String(),
