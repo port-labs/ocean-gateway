@@ -124,10 +124,22 @@ func eventIDAttrs(e *event.Event) []any {
 	}
 }
 
+func payloadLogValue(payload []byte) any {
+	trimmed := bytes.TrimSpace(payload)
+	if len(trimmed) == 0 {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal(trimmed, &v); err != nil {
+		return ""
+	}
+	return v
+}
+
 // eventLogAttrs returns structured fields for the terminal log of a live event,
 // including the full payload.
 func eventLogAttrs(e *event.Event) []any {
-	return append(eventIDAttrs(e), "payload", string(e.Payload))
+	return append(eventIDAttrs(e), "payload", payloadLogValue(e.Payload))
 }
 
 // write performs the XADD with bounded exponential backoff. Retries smooth over
@@ -139,6 +151,8 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	attempts := h.maxRetries + 1
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
+			h.log.Info("event added to stream")
+			h.log.Info("event added to stream", eventIDAttrs(e)...)
 			h.log.Info("event added to stream", eventLogAttrs(e)...)
 			return nil
 		}
