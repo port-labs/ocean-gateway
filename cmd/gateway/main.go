@@ -33,11 +33,16 @@ var (
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if err := run(log); err != nil {
+		os.Exit(1)
+	}
+}
 
+func run(log *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Error("config load failed", "err", err)
-		os.Exit(1)
+		return err
 	}
 	log.Info("starting ocean-gateway",
 		"version", version,
@@ -61,7 +66,7 @@ func main() {
 	nrApp, err := apm.NewRelicApp()
 	if err != nil {
 		log.Error("new relic init failed", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer func() {
 		if nrApp != nil {
@@ -75,7 +80,7 @@ func main() {
 	if err != nil {
 		cancelPing()
 		log.Error("redis connect failed", "url", cfg.RedisURL, "err", err)
-		os.Exit(1)
+		return err
 	}
 	cancelPing()
 	log.Info("redis connected", "url", cfg.RedisURL, "mode", rdb.Mode)
@@ -129,6 +134,7 @@ func main() {
 
 	_ = rdb.Close()
 	log.Info("shutdown complete")
+	return nil
 }
 
 func serve(log *slog.Logger, name, addr string, srv *http.Server) {
