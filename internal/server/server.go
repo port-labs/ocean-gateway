@@ -11,16 +11,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 // PingFunc is a function that pings a dependency and returns any error.
 // Wrap *redis.Client with: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }
 type PingFunc func(ctx context.Context) error
 
-// New builds the HTTP handler with middleware and routes mounted.
-func New(h *Handler, redisPing PingFunc, version, commit string, log *slog.Logger) http.Handler {
+// New builds the HTTP handler with middleware and routes mounted. nrApp may
+// be nil (New Relic disabled), in which case the New Relic middleware is a
+// no-op passthrough.
+func New(h *Handler, redisPing PingFunc, version, commit string, log *slog.Logger, nrApp *newrelic.Application) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	r.Use(newRelicTransaction(nrApp))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))

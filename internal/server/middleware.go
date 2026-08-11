@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"github.com/port-labs/ocean-gateway/internal/metrics"
 )
@@ -28,6 +29,33 @@ func (r *statusRecorder) Status() int {
 		return http.StatusOK
 	}
 	return r.status
+}
+
+// newRelicTransaction returns a chi middleware that starts a New Relic
+// transaction for every request and renames it after the matched route
+// pattern once routing completes, so live-events UUIDs (part of the path)
+// don't fragment a single logical endpoint into many transaction names.
+// A nil app disables instrumentation entirely (New Relic not configured).
+func newRelicTransaction(app *newrelic.Application) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if app == nil {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			txn := app.StartTransaction(r.Method + " " + r.URL.Path)
+			defer txn.End()
+
+			w = txn.SetWebResponse(w)
+			txn.SetWebRequestHTTP(r)
+			r = newrelic.RequestWithTransactionContext(r, txn)
+
+			next.ServeHTTP(w, r)
+
+			if route := chi.RouteContext(r.Context()).RoutePattern(); route != "" {
+				txn.SetName(r.Method + " " + route)
+			}
+		})
+	}
 }
 
 // requestLogger returns a chi middleware that emits a structured log line and

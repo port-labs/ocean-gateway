@@ -30,7 +30,7 @@ func TestEndToEndWebhookToStream(t *testing.T) {
 	writer := redisstream.NewWriter(rdb, 0, time.Hour, time.Hour)
 	h := server.NewHandler(writer, log, 2, time.Millisecond)
 	redisPing := func(ctx context.Context) error { return rdb.Ping(ctx).Err() }
-	ts := httptest.NewServer(server.New(h, redisPing, "test", "none", log))
+	ts := httptest.NewServer(server.New(h, redisPing, "test", "none", log, nil))
 	defer ts.Close()
 
 	liveEventsUUID := "pkhQJcQcUYfnTCHn"

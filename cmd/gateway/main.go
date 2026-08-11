@@ -16,6 +16,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/port-labs/ocean-gateway/internal/apm"
 	"github.com/port-labs/ocean-gateway/internal/config"
 	"github.com/port-labs/ocean-gateway/internal/metrics"
 	"github.com/port-labs/ocean-gateway/internal/redisclient"
@@ -57,6 +58,17 @@ func main() {
 	// Register build info and start collecting Redis pool stats.
 	metrics.RegisterBuildInfo(version, commit, date)
 
+	nrApp, err := apm.NewRelicApp()
+	if err != nil {
+		log.Error("new relic init failed", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if nrApp != nil {
+			nrApp.Shutdown(10 * time.Second)
+		}
+	}()
+
 	// Redis client + connectivity check (auto-detects cluster vs standalone).
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
 	rdb, err := redisclient.New(pingCtx, cfg)
@@ -84,7 +96,7 @@ func main() {
 	h := server.NewHandler(streamWriter, log, cfg.WriteMaxRetries, cfg.WriteBackoff)
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, version, commit, log),
+		Handler:           server.New(h, func(ctx context.Context) error { return rdb.Ping(ctx).Err() }, version, commit, log, nrApp),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	metricsSrv := &http.Server{

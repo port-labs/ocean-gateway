@@ -112,6 +112,14 @@ ceiling.
 | `gateway_redis_write_seconds` | Histogram | Duration of the Redis write (XADD round-trip, incl. retries) |
 | `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis write |
 
+### New Relic APM
+
+Set `NEW_RELIC_LICENSE_KEY` and `NEW_RELIC_APP_NAME` to enable New Relic APM. 
+When enabled, every request is wrapped in a New Relic transaction named after the matched
+route (e.g. `POST /live-events/{liveEventsUUID}/*`), giving throughput, error
+rate, and latency breakdowns per endpoint plus Go runtime metrics. When either
+variable is unset, the agent never starts and instrumentation is a no-op.
+
 ## On-premises webhook URL
 
 When running Ocean on-premises, configure each integration's webhook URL to
@@ -184,6 +192,8 @@ REDIS_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 | `STREAM_TTL` | `1h` | Idle stream key expiry, refreshed on each write (`0` = no expiry) |
 | `WRITE_MAX_RETRIES` | `2` | Per-request XADD retries before returning 503 |
 | `WRITE_BACKOFF_BASE` | `50ms` | Initial backoff (doubles per retry) |
+| `NEW_RELIC_LICENSE_KEY` | _(empty)_ | New Relic license key; APM is disabled unless this and `NEW_RELIC_APP_NAME` are both set |
+| `NEW_RELIC_APP_NAME` | _(empty)_ | New Relic application name shown in APM |
 
 ## Test
 

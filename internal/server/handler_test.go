@@ -45,7 +45,7 @@ func noopPing(_ context.Context) error { return nil }
 
 func doRequest(t *testing.T, h *Handler, liveEventsUUID, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	srv := New(h, noopPing, "test", "none", quiet())
+	srv := New(h, noopPing, "test", "none", quiet(), nil)
 	req := httptest.NewRequest(http.MethodPost, "/live-events/"+liveEventsUUID+"/integration/webhook", strings.NewReader(body))
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -292,7 +292,7 @@ func TestWriteLogsNonJSONPayloadEmpty(t *testing.T) {
 }
 
 func TestWebhookUnknownPathReturns404(t *testing.T) {
-	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet())
+	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet(), nil)
 	req := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -304,7 +304,7 @@ func TestWebhookUnknownPathReturns404(t *testing.T) {
 func TestWebhookAlternatePathSuffix(t *testing.T) {
 	w := &stubWriter{}
 	h := newHandler(w)
-	srv := New(h, noopPing, "test", "none", quiet())
+	srv := New(h, noopPing, "test", "none", quiet(), nil)
 
 	for _, path := range []string{
 		"/live-events/log123/integration/webhook",
@@ -334,7 +334,7 @@ func TestWebhookAlternatePathSuffix(t *testing.T) {
 }
 
 func TestHealthzRedisUp(t *testing.T) {
-	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet())
+	srv := New(newHandler(&stubWriter{}), noopPing, "test", "none", quiet(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -352,7 +352,7 @@ func TestHealthzRedisUp(t *testing.T) {
 
 func TestHealthzRedisDown(t *testing.T) {
 	failPing := func(_ context.Context) error { return errors.New("connection refused") }
-	srv := New(newHandler(&stubWriter{}), failPing, "test", "none", quiet())
+	srv := New(newHandler(&stubWriter{}), failPing, "test", "none", quiet(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
