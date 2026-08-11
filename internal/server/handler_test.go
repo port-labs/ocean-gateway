@@ -156,19 +156,44 @@ func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 }
 func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
-func (h *captureHandler) payloadCount(payload string) int {
+func (h *captureHandler) payloadKeyCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	n := 0
 	for _, r := range h.records {
 		r.Attrs(func(a slog.Attr) bool {
-			if a.Key == "payload" && a.Value.String() == payload {
+			if a.Key == "payload" {
 				n++
 			}
 			return true
 		})
 	}
 	return n
+}
+
+func (h *captureHandler) payloadField(key string) any {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, r := range h.records {
+		var found any
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key != "payload" {
+				return true
+			}
+			m, ok := a.Value.Any().(map[string]any)
+			if !ok {
+				return true
+			}
+			if v, ok := m[key]; ok {
+				found = v
+			}
+			return true
+		})
+		if found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func (h *captureHandler) attrValue(key string) string {
@@ -211,7 +236,7 @@ func TestWriteLogsPayloadOnceOnRetrySuccess(t *testing.T) {
 	if err := h.write(context.Background(), e); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if got := logs.payloadCount(payload); got != 1 {
+	if got := logs.payloadKeyCount(); got != 1 {
 		t.Fatalf("payload logged %d times want 1", got)
 	}
 }
@@ -225,8 +250,44 @@ func TestWriteLogsPayloadOnceOnFinalFailure(t *testing.T) {
 	if err := h.write(context.Background(), e); err == nil {
 		t.Fatal("write: want error")
 	}
-	if got := logs.payloadCount(payload); got != 1 {
+	if got := logs.payloadKeyCount(); got != 1 {
 		t.Fatalf("payload logged %d times want 1", got)
+	}
+}
+
+func TestWriteLogsPayloadAsStructuredJSON(t *testing.T) {
+	logs := &captureHandler{}
+	w := &stubWriter{}
+	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
+	e := &event.Event{
+		EventID:        event.NewID(),
+		LiveEventsUUID: "log123",
+		WebhookPath:    "hook",
+		Payload:        []byte(`{"field1":"val"}`),
+	}
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := logs.payloadField("field1"); got != "val" {
+		t.Fatalf("payload.field1 = %v want val", got)
+	}
+}
+
+func TestWriteLogsNonJSONPayloadEmpty(t *testing.T) {
+	logs := &captureHandler{}
+	w := &stubWriter{}
+	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
+	e := &event.Event{
+		EventID:        event.NewID(),
+		LiveEventsUUID: "log123",
+		WebhookPath:    "hook",
+		Payload:        []byte("not-json"),
+	}
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := logs.attrValue("payload"); got != "" {
+		t.Fatalf("payload = %q want empty", got)
 	}
 }
 
