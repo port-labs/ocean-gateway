@@ -106,11 +106,11 @@ ceiling.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `gateway_events_forwarded_total` | Counter | Events successfully written to Redis (use `rate()` for handling rate) |
-| `gateway_events_failed_total` | Counter | Events that failed to write after retries (caller got a 503) |
-| `gateway_inflight_requests` | Gauge | Requests currently blocked on a Redis write (saturation signal) |
-| `gateway_redis_write_seconds` | Histogram | Duration of the Redis write (XADD round-trip, incl. retries) |
-| `gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis write |
+| `ocean_gateway_events_forwarded_total` | Counter | Events successfully written to Redis (use `rate()` for handling rate) |
+| `ocean_gateway_events_failed_total` | Counter | Events that failed to write after retries (caller got a 503) |
+| `ocean_gateway_inflight_requests` | Gauge | Requests currently blocked on a Redis write (saturation signal) |
+| `ocean_gateway_redis_write_seconds` | Histogram | Duration of the Redis write (XADD round-trip, incl. retries) |
+| `ocean_gateway_event_e2e_seconds` | Histogram | End-to-end time from HTTP intake to successful Redis write |
 
 ## On-premises webhook URL
 

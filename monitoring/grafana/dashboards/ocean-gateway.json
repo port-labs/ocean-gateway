@@ -14,7 +14,7 @@
       "gridPos": {"x":0,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area", "orientation": "auto"},
       "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null}]}}},
-      "targets": [{"expr": "rate(gateway_events_forwarded_total[30s])", "legendFormat": "events/sec", "datasource": "Prometheus"}],
+      "targets": [{"expr": "rate(ocean_gateway_events_forwarded_total[30s])", "legendFormat": "events/sec", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
     {
@@ -22,7 +22,7 @@
       "gridPos": {"x":4,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area"},
       "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"red","value":0.1}]}}},
-      "targets": [{"expr": "rate(gateway_events_failed_total[30s])", "legendFormat": "failed/sec", "datasource": "Prometheus"}],
+      "targets": [{"expr": "rate(ocean_gateway_events_failed_total[30s])", "legendFormat": "failed/sec", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
     {
@@ -30,7 +30,7 @@
       "gridPos": {"x":8,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
       "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":80}]}}},
-      "targets": [{"expr": "gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}],
+      "targets": [{"expr": "ocean_gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
     {
@@ -38,7 +38,7 @@
       "gridPos": {"x":12,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
       "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":0.05},{"color":"red","value":0.2}]}}},
-      "targets": [{"expr": "histogram_quantile(0.99, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}],
+      "targets": [{"expr": "histogram_quantile(0.99, rate(ocean_gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
     {
@@ -46,7 +46,7 @@
       "gridPos": {"x":16,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
       "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"blue","value":null}]}}},
-      "targets": [{"expr": "gateway_events_forwarded_total", "legendFormat": "total", "datasource": "Prometheus"}],
+      "targets": [{"expr": "ocean_gateway_events_forwarded_total", "legendFormat": "total", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
     {
@@ -54,7 +54,7 @@
       "gridPos": {"x":20,"y":1,"w":4,"h":4},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area"},
       "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color":"green","value":null}]}}},
-      "targets": [{"expr": "gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"}],
+      "targets": [{"expr": "ocean_gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"}],
       "datasource": "Prometheus"
     },
 
@@ -67,8 +67,8 @@
       "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "rate(gateway_events_forwarded_total[30s])", "legendFormat": "forwarded", "datasource": "Prometheus"},
-        {"expr": "rate(gateway_events_failed_total[30s])", "legendFormat": "failed", "datasource": "Prometheus"}
+        {"expr": "rate(ocean_gateway_events_forwarded_total[30s])", "legendFormat": "forwarded", "datasource": "Prometheus"},
+        {"expr": "rate(ocean_gateway_events_failed_total[30s])", "legendFormat": "failed", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -78,7 +78,7 @@
       "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "sum by (status) (rate(gateway_http_requests_total[30s]))", "legendFormat": "{{status}}", "datasource": "Prometheus"}
+        {"expr": "sum by (status) (rate(ocean_gateway_http_requests_total[30s]))", "legendFormat": "{{status}}", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -92,9 +92,9 @@
       "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "histogram_quantile(0.50, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
-        {"expr": "histogram_quantile(0.95, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
-        {"expr": "histogram_quantile(0.99, rate(gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
+        {"expr": "histogram_quantile(0.50, rate(ocean_gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.95, rate(ocean_gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.99, rate(ocean_gateway_event_e2e_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -104,9 +104,9 @@
       "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "histogram_quantile(0.50, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
-        {"expr": "histogram_quantile(0.95, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
-        {"expr": "histogram_quantile(0.99, rate(gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
+        {"expr": "histogram_quantile(0.50, rate(ocean_gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p50", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.95, rate(ocean_gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p95", "datasource": "Prometheus"},
+        {"expr": "histogram_quantile(0.99, rate(ocean_gateway_redis_write_seconds_bucket[30s]))", "legendFormat": "p99", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -120,9 +120,9 @@
       "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"},
-        {"expr": "gateway_redis_pool_idle_conns", "legendFormat": "idle", "datasource": "Prometheus"},
-        {"expr": "gateway_redis_pool_stale_conns", "legendFormat": "stale", "datasource": "Prometheus"}
+        {"expr": "ocean_gateway_redis_pool_total_conns", "legendFormat": "total", "datasource": "Prometheus"},
+        {"expr": "ocean_gateway_redis_pool_idle_conns", "legendFormat": "idle", "datasource": "Prometheus"},
+        {"expr": "ocean_gateway_redis_pool_stale_conns", "legendFormat": "stale", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -132,9 +132,9 @@
       "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "rate(gateway_redis_pool_hits_total[30s])", "legendFormat": "hits", "datasource": "Prometheus"},
-        {"expr": "rate(gateway_redis_pool_misses_total[30s])", "legendFormat": "misses", "datasource": "Prometheus"},
-        {"expr": "rate(gateway_redis_pool_timeouts_total[30s])", "legendFormat": "timeouts", "datasource": "Prometheus"}
+        {"expr": "rate(ocean_gateway_redis_pool_hits_total[30s])", "legendFormat": "hits", "datasource": "Prometheus"},
+        {"expr": "rate(ocean_gateway_redis_pool_misses_total[30s])", "legendFormat": "misses", "datasource": "Prometheus"},
+        {"expr": "rate(ocean_gateway_redis_pool_timeouts_total[30s])", "legendFormat": "timeouts", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -148,7 +148,7 @@
       "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2}, "thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":80}]}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}
+        {"expr": "ocean_gateway_inflight_requests", "legendFormat": "in-flight", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     },
@@ -158,7 +158,7 @@
       "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
-        {"expr": "histogram_quantile(0.99, sum by (route, le) (rate(gateway_http_request_duration_seconds_bucket[30s])))", "legendFormat": "p99 {{route}}", "datasource": "Prometheus"}
+        {"expr": "histogram_quantile(0.99, sum by (route, le) (rate(ocean_gateway_http_request_duration_seconds_bucket[30s])))", "legendFormat": "p99 {{route}}", "datasource": "Prometheus"}
       ],
       "datasource": "Prometheus"
     }

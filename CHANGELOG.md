@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prometheus metrics at `/metrics`: forwarded/failed counters, inflight gauge,
   redis write and e2e latency histograms, HTTP request metrics, Redis pool stats
 - `/healthz` with live Redis ping and structured JSON response (`200` / `503`)
-- `gateway_build_info` metric with version/commit/date/go_version labels
+- `ocean_gateway_build_info` metric with version/commit/date/go_version labels
 - Per-request structured JSON logging (method, route, status, latency, requestId)
 - Retry logging (warn on each attempt, error on final failure)
 - `REDIS_POOL_SIZE` config for tuning concurrent write capacity
