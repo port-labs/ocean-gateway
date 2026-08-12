@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- `EVENT_TTL` default is now `0` (no age-based trim); consumers are expected to
+  delete entries after processing
+
 ### Added
 - `queuedAt` stream entry field (Unix nanoseconds) stamped before each `XADD`
   so consumers can measure time-until-consumed (queue wait from write to first

@@ -94,11 +94,12 @@ ceiling.
 
 **Retention** — applied on every write:
 
-- **Event TTL** (`EVENT_TTL`, default 1h): each `XADD` trims entries older than
-  the TTL via `MINID`, so a stream holds roughly the last hour of events.
 - **Stream idle TTL** (`STREAM_TTL`, default 1h): each write refreshes the
   stream key's `EXPIRE`, so a stream with no new events for the TTL is deleted
   entirely. Active streams never expire.
+- **Event TTL** (`EVENT_TTL`, default off): optional age-based trim via
+  `MINID` on each `XADD`. Off by default — consumers delete entries after
+  processing (`XACK` + `XDEL`).
 
 ## Metrics
 
@@ -180,7 +181,7 @@ REDIS_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 | `REDIS_DB` | `0` | Redis database |
 | `REDIS_POOL_SIZE` | `0` | Redis connection pool size; bounds concurrent writes (`0` = go-redis default, 10×GOMAXPROCS) |
 | `REDIS_STREAM_MAXLEN` | `0` | Approx `MAXLEN` per stream, size-based (ignored when `EVENT_TTL` > 0; `0` = uncapped) |
-| `EVENT_TTL` | `1h` | Trim stream entries older than this via `MINID` (`0` = no age trim) |
+| `EVENT_TTL` | `0` | Trim stream entries older than this via `MINID` (`0` = no age trim) |
 | `STREAM_TTL` | `1h` | Idle stream key expiry, refreshed on each write (`0` = no expiry) |
 | `WRITE_MAX_RETRIES` | `2` | Per-request XADD retries before returning 503 |
 | `WRITE_BACKOFF_BASE` | `50ms` | Initial backoff (doubles per retry) |
@@ -246,14 +247,11 @@ the stream.
 
 ## Retention notes
 
-`EVENT_TTL` and `STREAM_TTL` both default to `1h` and are independent:
-
-- **`EVENT_TTL`** trims individual entries via `XADD MINID` on every write — a
-  stream that receives events continuously will only ever hold the last hour's
-  worth of events.
-- **`STREAM_TTL`** is an `EXPIRE` refreshed on every write — a stream that
-  receives no events for the TTL is deleted entirely. Set `STREAM_TTL` longer
-  than `EVENT_TTL` if consumers may lag and you want idle streams to survive.
+- **`STREAM_TTL`** (default `1h`) is an `EXPIRE` refreshed on every write — a
+  stream that receives no events for the TTL is deleted entirely.
+- **`EVENT_TTL`** (default `0`, off) optionally trims individual entries via
+  `XADD MINID` on every write. Leave off when consumers delete entries after
+  processing; enabling it can drop unacked messages if consumers lag past the TTL.
 
 ## Contributing
 

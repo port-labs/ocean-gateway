@@ -101,5 +101,6 @@ This ensures:
 ```
 The `raw` segment is namespaced to leave room for other event classes later.
 
-**Retention:** `EVENT_TTL` trims old entries via `XADD MINID`; `STREAM_TTL`
-deletes idle streams via `EXPIRE` refreshed on each write. Both default to 1h.
+**Retention:** `STREAM_TTL` (default 1h) deletes idle streams via `EXPIRE`
+refreshed on each write. Optional `EVENT_TTL` trims old entries via `XADD MINID`
+when set; default is off (`0`) — consumers delete entries after ack.
