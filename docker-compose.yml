@@ -6,8 +6,7 @@ services:
       - "9100:9100"
     environment:
       REDIS_LIVE_EVENTS_URL: redis:6379
-      EVENT_TTL: 1h
-      STREAM_TTL: 1h
+      STREAM_TTL: 720h
       WRITE_MAX_RETRIES: "2"
       WRITE_BACKOFF_BASE: 50ms
     depends_on:
