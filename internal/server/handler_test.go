@@ -227,7 +227,7 @@ func TestWriteLogsEventIDOnSuccess(t *testing.T) {
 	}
 }
 
-func TestWriteLogsPayloadNotOnRetrySuccess(t *testing.T) {
+func TestWriteLogsPayloadOnceOnRetrySuccess(t *testing.T) {
 	logs := &captureHandler{}
 	w := &stubWriter{failTimes: 2}
 	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
@@ -236,8 +236,8 @@ func TestWriteLogsPayloadNotOnRetrySuccess(t *testing.T) {
 	if err := h.write(context.Background(), e); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if got := logs.payloadKeyCount(); got != 0 {
-		t.Fatalf("payload logged %d times want 0", got)
+	if got := logs.payloadKeyCount(); got != 1 {
+		t.Fatalf("payload logged %d times want 1", got)
 	}
 }
 
@@ -255,9 +255,9 @@ func TestWriteLogsPayloadOnceOnFinalFailure(t *testing.T) {
 	}
 }
 
-func TestWriteLogsPayloadAsStructuredJSONOnFailure(t *testing.T) {
+func TestWriteLogsPayloadAsStructuredJSON(t *testing.T) {
 	logs := &captureHandler{}
-	w := &stubWriter{failTimes: 99}
+	w := &stubWriter{}
 	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
 	e := &event.Event{
 		EventID:        event.NewID(),
@@ -265,17 +265,17 @@ func TestWriteLogsPayloadAsStructuredJSONOnFailure(t *testing.T) {
 		WebhookPath:    "hook",
 		Payload:        []byte(`{"field1":"val"}`),
 	}
-	if err := h.write(context.Background(), e); err == nil {
-		t.Fatal("write: want error")
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
 	}
 	if got := logs.payloadField("field1"); got != "val" {
 		t.Fatalf("payload.field1 = %v want val", got)
 	}
 }
 
-func TestWriteLogsNonJSONPayloadEmptyOnFailure(t *testing.T) {
+func TestWriteLogsNonJSONPayloadEmpty(t *testing.T) {
 	logs := &captureHandler{}
-	w := &stubWriter{failTimes: 99}
+	w := &stubWriter{}
 	h := NewHandler(w, slog.New(logs), 2, time.Millisecond)
 	e := &event.Event{
 		EventID:        event.NewID(),
@@ -283,8 +283,8 @@ func TestWriteLogsNonJSONPayloadEmptyOnFailure(t *testing.T) {
 		WebhookPath:    "hook",
 		Payload:        []byte("not-json"),
 	}
-	if err := h.write(context.Background(), e); err == nil {
-		t.Fatal("write: want error")
+	if err := h.write(context.Background(), e); err != nil {
+		t.Fatalf("write: %v", err)
 	}
 	if got := logs.attrValue("payload"); got != "" {
 		t.Fatalf("payload = %q want empty", got)
