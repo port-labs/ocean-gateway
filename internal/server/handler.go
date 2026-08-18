@@ -147,15 +147,12 @@ func eventLogAttrs(e *event.Event) []any {
 
 // write performs the XADD with bounded exponential backoff. Retries smooth over
 // transient blips; a persistent failure surfaces to the caller as a 503.
-// The full payload is logged exactly once: on success Info, or on the final Error.
 func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	delay := h.backoff
 	var err error
 	attempts := h.maxRetries + 1
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
-			h.log.Info("event added to stream")
-			h.log.Info("event added to stream", eventIDAttrs(e)...)
 			h.log.Info("event added to stream", eventLogAttrs(e)...)
 			return nil
 		}
