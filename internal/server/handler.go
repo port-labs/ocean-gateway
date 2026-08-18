@@ -153,7 +153,7 @@ func (h *Handler) write(ctx context.Context, e *event.Event) error {
 	attempts := h.maxRetries + 1
 	for attempt := 0; attempt <= h.maxRetries; attempt++ {
 		if err = h.writer.Add(ctx, e); err == nil {
-			h.log.Info("event added to stream", eventIDAttrs(e)...)
+			h.log.Info("event added to stream", eventLogAttrs(e)...)
 			return nil
 		}
 		if attempt == h.maxRetries {
