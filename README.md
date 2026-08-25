@@ -97,8 +97,8 @@ ceiling.
 - **Stream idle TTL** (`STREAM_TTL`, default 720h / 30d): each write refreshes the
   stream key's `EXPIRE`, so a stream with no new events for the TTL is deleted
   entirely. Active streams never expire.
-- **Event TTL** (`EVENT_TTL`, default 24h): age-based trim via
-  `MINID` on each `XADD`, keeping roughly the last day of events per stream.
+- **Event TTL** (`EVENT_TTL`, default 6h): age-based trim via
+  `MINID` on each `XADD`, keeping roughly the last 6 hours of events per stream.
   Set to `0` to disable age trim.
 
 ## Metrics
@@ -181,7 +181,7 @@ REDIS_LIVE_EVENTS_URL=localhost:6379 go run ./cmd/gateway
 | `REDIS_DB` | `0` | Redis database |
 | `REDIS_POOL_SIZE` | `0` | Redis connection pool size; bounds concurrent writes (`0` = go-redis default, 10×GOMAXPROCS) |
 | `REDIS_STREAM_MAXLEN` | `0` | Approx `MAXLEN` per stream, size-based (ignored when `EVENT_TTL` > 0; `0` = uncapped) |
-| `EVENT_TTL` | `24h` | Trim stream entries older than this via `MINID` (`0` = no age trim) |
+| `EVENT_TTL` | `6h` | Trim stream entries older than this via `MINID` (`0` = no age trim) |
 | `STREAM_TTL` | `720h` | Idle stream key expiry, refreshed on each write (`0` = no expiry) |
 | `WRITE_MAX_RETRIES` | `2` | Per-request XADD retries before returning 503 |
 | `WRITE_BACKOFF_BASE` | `50ms` | Initial backoff (doubles per retry) |
@@ -249,7 +249,7 @@ the stream.
 
 - **`STREAM_TTL`** (default `720h` / 30d) is an `EXPIRE` refreshed on every write — a
   stream that receives no events for the TTL is deleted entirely.
-- **`EVENT_TTL`** (default `24h`) trims individual entries via
+- **`EVENT_TTL`** (default `6h`) trims individual entries via
   `XADD MINID` on every write. Set to `0` to disable; consumers that lag past
   the TTL may miss unacked messages.
 
