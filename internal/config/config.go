@@ -52,7 +52,7 @@ func Load() (Config, error) {
 	if c.StreamMaxLen, err = getInt64("REDIS_STREAM_MAXLEN", 0); err != nil {
 		return c, err
 	}
-	if c.EventTTL, err = getDur("EVENT_TTL", 6*time.Hour); err != nil {
+	if c.EventTTL, err = getDur("EVENT_TTL", 2*time.Hour); err != nil {
 		return c, err
 	}
 	if c.StreamTTL, err = getDur("STREAM_TTL", 30*24*time.Hour); err != nil {
