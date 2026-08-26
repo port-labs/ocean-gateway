@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - `STREAM_TTL` default is now `720h` (30 days)
-- `EVENT_TTL` default is now `6h` (age-based trim via `XADD MINID`)
+- `EVENT_TTL` default is now `2h` (age-based trim via `XADD MINID`)
 
 ### Added
 - `queuedAt` stream entry field (Unix nanoseconds) stamped before each `XADD`
