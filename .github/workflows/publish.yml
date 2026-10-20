@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -50,6 +50,16 @@ jobs:
             VERSION=${{ steps.tag.outputs.tag }}
             COMMIT=${{ github.sha }}
             DATE=${{ github.event.head_commit.timestamp }}
+
+      # Mirror the GHCR image tag as a git tag (skipped when the workflow was
+      # already triggered by a v* tag push, since that tag already exists).
+      - name: Create git tag
+        if: github.ref_type != 'tag'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ steps.tag.outputs.tag }}
+          tag_prefix: ""
 
       - name: Summary
         run: |
