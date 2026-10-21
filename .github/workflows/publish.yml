@@ -13,13 +13,13 @@ jobs:
     name: Build & Push to GHCR
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve tags
         id: tag
         run: |
-          echo "image_tag=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "git_tag=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "git_tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -57,6 +57,6 @@ jobs:
       - name: Summary
         run: |
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`ghcr.io/port-labs/ocean-gateway:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`ghcr.io/port-labs/ocean-gateway:latest\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Git tag: \`${{ steps.tag.outputs.git_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
