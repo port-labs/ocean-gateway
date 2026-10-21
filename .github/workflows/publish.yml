@@ -3,7 +3,6 @@ name: Publish
 on:
   push:
     branches: [main]
-    tags: ["v*"]
 
 permissions:
   contents: write
@@ -16,14 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve image tag
+      - name: Resolve tags
         id: tag
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
-          fi
+          echo "image_tag=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "git_tag=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -44,25 +40,23 @@ jobs:
           provenance: false
           sbom: false
           tags: |
-            ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.tag }}
+            ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.image_tag }}
             ghcr.io/port-labs/ocean-gateway:latest
           build-args: |
-            VERSION=${{ steps.tag.outputs.tag }}
+            VERSION=${{ steps.tag.outputs.image_tag }}
             COMMIT=${{ github.sha }}
             DATE=${{ github.event.head_commit.timestamp }}
 
-      # Mirror the GHCR image tag as a git tag (skipped when the workflow was
-      # already triggered by a v* tag push, since that tag already exists).
       - name: Create git tag
-        if: github.ref_type != 'tag'
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          custom_tag: ${{ steps.tag.outputs.tag }}
+          custom_tag: ${{ steps.tag.outputs.git_tag }}
           tag_prefix: ""
 
       - name: Summary
         run: |
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`ghcr.io/port-labs/ocean-gateway:${{ steps.tag.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "\`ghcr.io/port-labs/ocean-gateway:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Git tag: \`${{ steps.tag.outputs.git_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
