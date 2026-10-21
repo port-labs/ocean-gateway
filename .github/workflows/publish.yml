@@ -22,7 +22,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "tag=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
